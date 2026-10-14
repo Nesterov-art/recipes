@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import { useEffect, useState } from 'react';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { FlatList, Keyboard, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -15,14 +15,11 @@ import { categoryLabel, filterLabel, plural, todayLabel } from '@/utils/recipes'
 const MIN_BOTTOM_GAP = 8;
 const BOTTOM_BAR_HEIGHT = 60;
 const LIST_TO_BAR_GAP = 24;
-const SORT_TRANSITION_MS = 300;
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-  const [sortTransitioning, setSortTransitioning] = useState(false);
-  const sortTransitionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { colors, language, t } = useSettings();
   const styles = useStyles();
   const {
@@ -72,10 +69,6 @@ export default function HomeScreen() {
     return () => viewport.removeEventListener('resize', handleViewportResize);
   }, [searchFocused]);
 
-  useEffect(() => () => {
-    if (sortTransitionRef.current) clearTimeout(sortTransitionRef.current);
-  }, []);
-
   function handleRandom() {
     const recipe = pickRandom();
     if (recipe) {
@@ -84,13 +77,7 @@ export default function HomeScreen() {
   }
 
   function cycleSort() {
-    if (sortTransitioning) return;
-    setSortTransitioning(true);
     setSort(sort === 'recent' ? 'asc' : sort === 'asc' ? 'desc' : 'recent');
-    sortTransitionRef.current = setTimeout(() => {
-      setSortTransitioning(false);
-      sortTransitionRef.current = null;
-    }, SORT_TRANSITION_MS);
   }
 
   const currentSortLabel = sort === 'recent' ? t('sortRecent') : sort === 'asc' ? t('sortAsc') : t('sortDesc');
@@ -152,14 +139,12 @@ export default function HomeScreen() {
         </Text>
         <Pressable
           onPress={cycleSort}
-          disabled={sortTransitioning}
           style={({ pressed }) => [
             styles.sortButton,
-            pressed && !sortTransitioning && { backgroundColor: colors.cardPressed },
+            pressed && { backgroundColor: colors.cardPressed },
           ]}
           accessibilityRole="button"
           accessibilityLabel={t('changeSort')}
-          accessibilityState={{ disabled: sortTransitioning }}
         >
           <Ionicons name="swap-vertical" size={16} color={colors.text} />
           <Text style={styles.sortText}>{currentSortLabel}</Text>
@@ -239,7 +224,6 @@ export default function HomeScreen() {
           return (
             <Animated.View
               exiting={FadeOut.duration(160)}
-              layout={LinearTransition.duration(SORT_TRANSITION_MS)}
             >
               <Pressable
               onPress={() =>

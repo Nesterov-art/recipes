@@ -43,16 +43,19 @@ function RootNavigator() {
     <Stack
       screenOptions={{
         headerShown: false,
-        // The JS stack otherwise delegates scrolling to document.body on web,
-        // while Expo's web reset intentionally keeps body overflow hidden.
-        // Keeping the (hidden) header in float mode constrains each card and
-        // lets the screen's own ScrollView/FlatList handle vertical scrolling.
-        headerMode: Platform.OS === 'web' ? 'float' : undefined,
         gestureEnabled: Platform.OS !== 'web',
         // Safari already animates its interactive edge-swipe. Avoid replaying
         // the stack animation after popstate, while keeping button transitions.
         animation: webHistoryNavigating ? 'none' : 'slide_from_right',
-        cardStyle: { backgroundColor: colors.bg },
+        // Expo web keeps document.body non-scrollable. Constrain the card to
+        // the visible app viewport so every screen's own list remains the
+        // scroll container without switching to a floating-header layout.
+        cardStyle: {
+          flex: 1,
+          height: '100%',
+          overflow: 'hidden',
+          backgroundColor: colors.bg,
+        },
       }}
     >
       <Stack.Screen name="index" />
