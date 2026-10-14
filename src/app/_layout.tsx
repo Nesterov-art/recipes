@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Stack } from 'expo-router/js-stack';
 import { Platform } from 'react-native';
@@ -12,16 +12,46 @@ import { ShoppingProvider, useShopping } from '@/context/shopping-context';
 import { ToastProvider } from '@/context/toast-context';
 
 function RootNavigator() {
+  const [webHistoryNavigating, setWebHistoryNavigating] = useState(false);
+  const historyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { loaded: recipesLoaded } = useRecipes();
   const { loaded: shoppingLoaded } = useShopping();
   const { colors, loaded: settingsLoaded } = useSettings();
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+
+    const handlePopState = () => {
+      setWebHistoryNavigating(true);
+      if (historyResetRef.current) clearTimeout(historyResetRef.current);
+      historyResetRef.current = setTimeout(() => {
+        setWebHistoryNavigating(false);
+        historyResetRef.current = null;
+      }, 300);
+    };
+
+    window.addEventListener('popstate', handlePopState, { capture: true });
+    return () => {
+      window.removeEventListener('popstate', handlePopState, { capture: true });
+      if (historyResetRef.current) clearTimeout(historyResetRef.current);
+    };
+  }, []);
+
   if (!recipesLoaded || !settingsLoaded || !shoppingLoaded) return null;
 
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        animation: 'slide_from_right',
+        // The JS stack otherwise delegates scrolling to document.body on web,
+        // while Expo's web reset intentionally keeps body overflow hidden.
+        // Keeping the (hidden) header in float mode constrains each card and
+        // lets the screen's own ScrollView/FlatList handle vertical scrolling.
+        headerMode: Platform.OS === 'web' ? 'float' : undefined,
+        gestureEnabled: Platform.OS !== 'web',
+        // Safari already animates its interactive edge-swipe. Avoid replaying
+        // the stack animation after popstate, while keeping button transitions.
+        animation: webHistoryNavigating ? 'none' : 'slide_from_right',
         cardStyle: { backgroundColor: colors.bg },
       }}
     >
