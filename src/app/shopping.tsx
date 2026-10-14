@@ -6,7 +6,6 @@ import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable
 import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
-import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSettings } from '@/context/settings-context';
@@ -223,7 +222,7 @@ export default function ShoppingScreen() {
   );
 
   return (
-    <Animated.View entering={FadeIn.duration(200)} style={styles.screen}>
+    <View style={styles.screen}>
       <DraggableFlatList
         containerStyle={styles.shoppingList}
         style={styles.shoppingList}
@@ -267,6 +266,6 @@ export default function ShoppingScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       />
-    </Animated.View>
+    </View>
   );
 }

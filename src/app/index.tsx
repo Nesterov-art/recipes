@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import Animated, { FadeIn, FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { FlatList, Keyboard, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -212,7 +212,7 @@ export default function HomeScreen() {
   );
 
   return (
-    <Animated.View entering={FadeIn.duration(250)} style={styles.screen}>
+    <View style={styles.screen}>
       <FlatList
         data={visible}
         keyExtractor={(item) => item.id}
@@ -238,7 +238,6 @@ export default function HomeScreen() {
           const isLast = index === visible.length - 1;
           return (
             <Animated.View
-              entering={FadeInDown.delay(Math.min(index, 5) * 25).duration(180)}
               exiting={FadeOut.duration(160)}
               layout={LinearTransition.duration(SORT_TRANSITION_MS)}
             >
@@ -314,6 +313,6 @@ export default function HomeScreen() {
           </Animated.View>
         </>
       )}
-    </Animated.View>
+    </View>
   );
 }

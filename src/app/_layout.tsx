@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { type PropsWithChildren, useCallback, useEffect } from 'react';
+import { Stack, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AppToast } from '@/components/app-toast';
@@ -10,6 +11,28 @@ import { RecipesProvider, useRecipes } from '@/context/recipes-context';
 import { SettingsProvider, useSettings } from '@/context/settings-context';
 import { ShoppingProvider, useShopping } from '@/context/shopping-context';
 import { ToastProvider } from '@/context/toast-context';
+
+function WebScreenTransition({ children }: PropsWithChildren) {
+  const opacity = useSharedValue(0);
+
+  useFocusEffect(useCallback(() => {
+    opacity.set(0);
+    opacity.set(withTiming(1, { duration: 180 }));
+
+    return () => {
+      opacity.set(0);
+    };
+  }, [opacity]));
+
+  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  return <Animated.View style={[{ flex: 1 }, animatedStyle]}>{children}</Animated.View>;
+}
+
+function ScreenTransition({ children }: PropsWithChildren) {
+  if (Platform.OS !== 'web') return children;
+  return <WebScreenTransition>{children}</WebScreenTransition>;
+}
 
 function RootNavigator() {
   const { loaded: recipesLoaded } = useRecipes();
@@ -19,6 +42,7 @@ function RootNavigator() {
 
   return (
     <Stack
+      screenLayout={({ children }) => <ScreenTransition>{children}</ScreenTransition>}
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: colors.bg },

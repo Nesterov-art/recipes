@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { FlatList, Pressable, Text, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useRecipes } from '@/context/recipes-context';
@@ -78,7 +77,7 @@ export default function ShoppingMatchesScreen() {
   }
 
   return (
-    <Animated.View entering={FadeIn.duration(200)} style={styles.screen}>
+    <View style={styles.screen}>
       <FlatList
         data={matches}
         keyExtractor={(match) => match.recipe.id}
@@ -111,6 +110,6 @@ export default function ShoppingMatchesScreen() {
         }}
         showsVerticalScrollIndicator={false}
       />
-    </Animated.View>
+    </View>
   );
 }
