@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Рецепты",
+    "slug": "recipes",
+    "scheme": "recipes",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#272B27",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#272B27",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "backgroundColor": "#272B27"
+        }
+      ],
+      "expo-router",
+      "expo-status-bar",
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "59088891-882c-4800-8df7-4f1e51cad919"
+      }
+    },
+    "owner": "neyroshi",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/59088891-882c-4800-8df7-4f1e51cad919"
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
