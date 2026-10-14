@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useRecipes } from '@/context/recipes-context';
@@ -21,6 +21,7 @@ function first(value: string | string[] | undefined) {
 
 export default function RecipeScreen() {
   const insets = useSafeAreaInsets();
+  const effectiveBottomInset = Platform.OS === 'web' ? 0 : insets.bottom;
   const { colors, language, t } = useSettings();
   const styles = useStyles();
   const params = useLocalSearchParams<{ id?: string | string[]; fromRandom?: string | string[] }>();
@@ -72,7 +73,7 @@ export default function RecipeScreen() {
         contentContainerStyle={{
           paddingTop: insets.top + 8,
           paddingHorizontal: 16,
-          paddingBottom: insets.bottom + (fromRandom ? 120 : 40),
+          paddingBottom: effectiveBottomInset + (fromRandom ? 120 : 40),
         }}
       >
         <View style={styles.topBar}>
@@ -252,7 +253,10 @@ export default function RecipeScreen() {
             style={styles.bottomFade}
             pointerEvents="none"
           />
-          <View style={[styles.bottomBar, { bottom: insets.bottom + 8 }]} pointerEvents="box-none">
+          <View
+            style={[styles.bottomBar, { bottom: Math.max(effectiveBottomInset, 8) }]}
+            pointerEvents="box-none"
+          >
             <Pressable
               onPress={handleAnother}
               style={({ pressed }) => [styles.fab, pressed && { transform: [{ scale: 0.96 }] }]}

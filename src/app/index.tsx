@@ -33,7 +33,10 @@ export default function HomeScreen() {
     ? Math.round(recipes.reduce((sum, recipe) => sum + recipe.time, 0) / recipes.length)
     : 0;
 
-  const bottomBarOffset = Math.max(insets.bottom, MIN_BOTTOM_GAP);
+  // iOS standalone web apps already constrain the React root above the Home
+  // Indicator. Applying the CSS safe-area value again lifts the bar twice.
+  const effectiveBottomInset = Platform.OS === 'web' ? 0 : insets.bottom;
+  const bottomBarOffset = Math.max(effectiveBottomInset, MIN_BOTTOM_GAP);
   const listBottomPadding = bottomBarOffset + BOTTOM_BAR_HEIGHT + LIST_TO_BAR_GAP;
   const hideBottomBar = keyboardVisible;
 
@@ -213,8 +216,9 @@ export default function HomeScreen() {
       <FlatList
         data={visible}
         keyExtractor={(item) => item.id}
+        style={{ marginTop: insets.top }}
         contentContainerStyle={{
-          paddingTop: insets.top + 16,
+          paddingTop: 16,
           paddingHorizontal: 16,
           paddingBottom: listBottomPadding,
         }}

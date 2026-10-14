@@ -20,7 +20,10 @@
       /* These styles make the body full-height */
       html,
       body {
+        width: 100%;
         height: 100%;
+        min-height: 100%;
+        margin: 0;
         background-color: #000000;
       }
       /* These styles disable body scrolling if you are using <ScrollView> */
@@ -31,15 +34,25 @@
       #root {
         display: flex;
         height: 100%;
+        min-height: 0;
         flex: 1;
       }
 
-      /* Replace the browser's bright platform focus ring with a theme-aware,
-         accessible indicator that does not change field geometry. */
+      /* Keep the app tied to the currently visible mobile viewport. This
+         avoids iOS Safari/PWA using a taller legacy layout viewport. */
+      @supports (height: 100dvh) {
+        html,
+        body,
+        #root {
+          height: 100dvh;
+        }
+      }
+
+      /* React Native fields provide their own shape and contrast. Prevent the
+         browser from drawing an extra rectangular focus ring over them. */
       input:focus,
       textarea:focus {
-        outline: 1px solid var(--input-focus-color, #38383a) !important;
-        outline-offset: -1px;
+        outline: none !important;
         box-shadow: none !important;
       }
     </style>
