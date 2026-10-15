@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
 import ReanimatedSwipeable, {
@@ -11,11 +11,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '@/context/settings-context';
 import { useShopping } from '@/context/shopping-context';
 import { useStyles } from '@/styles';
-import type { ShoppingItem } from '@/utils/shopping';
+import { orderShoppingItems, type ShoppingItem } from '@/utils/shopping';
 
 export default function ShoppingScreen() {
   const insets = useSafeAreaInsets();
-  const { colors, t } = useSettings();
+  const { colors, shoppingCompletedBehavior, t } = useSettings();
   const {
     addItem,
     clearCompleted,
@@ -32,6 +32,10 @@ export default function ShoppingScreen() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const swipeableRefs = useRef(new Map<string, SwipeableMethods>());
   const hasCompleted = items.some((item) => item.checked);
+  const displayedItems = useMemo(
+    () => orderShoppingItems(items, shoppingCompletedBehavior === 'moveDown'),
+    [items, shoppingCompletedBehavior],
+  );
 
   function closeSwipeables(exceptId?: string) {
     swipeableRefs.current.forEach((swipeable, id) => {
@@ -226,12 +230,12 @@ export default function ShoppingScreen() {
       <DraggableFlatList
         containerStyle={styles.shoppingList}
         style={styles.shoppingList}
-        data={items}
+        data={displayedItems}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         onDragBegin={(index) => {
           closeSwipeables();
-          setDraggingId(items[index]?.id ?? null);
+          setDraggingId(displayedItems[index]?.id ?? null);
         }}
         onDragEnd={({ data }) => {
           reorderItems(data.map((item) => item.id));

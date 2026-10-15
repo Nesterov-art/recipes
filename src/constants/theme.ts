@@ -1,4 +1,5 @@
-export type ThemeMode = 'light' | 'dark';
+export type ThemeMode = 'system' | 'light' | 'dark';
+export type ResolvedThemeMode = Exclude<ThemeMode, 'system'>;
 
 export type AppColors = {
   bg: string;
@@ -15,7 +16,7 @@ export type AppColors = {
   fadeEnd: string;
 };
 
-export const THEMES: Record<ThemeMode, AppColors> = {
+export const THEMES: Record<ResolvedThemeMode, AppColors> = {
   dark: {
     bg: '#000000', card: '#1C1C1E', cardPressed: '#2C2C2E', separator: '#38383A',
     text: '#FFFFFF', muted: '#8E8E93', accent: '#FFFFFF', accentText: '#000000',

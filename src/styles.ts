@@ -22,7 +22,6 @@ function createStyles(COLORS: AppColors, fontScale: number) {
     color: COLORS.text,
     marginTop: 28,
     marginBottom: 12,
-    marginLeft: 4,
   },
   listHeading: {
     flexDirection: 'row',
@@ -31,7 +30,6 @@ function createStyles(COLORS: AppColors, fontScale: number) {
     gap: 12,
     marginTop: 28,
     marginBottom: 12,
-    marginLeft: 4,
   },
   listHeadingTitle: { flex: 1, fontSize: fs(24), fontWeight: '800', color: COLORS.text },
   sortButton: {
@@ -201,7 +199,6 @@ function createStyles(COLORS: AppColors, fontScale: number) {
     letterSpacing: 0.5,
     marginTop: 24,
     marginBottom: 8,
-    marginLeft: 16,
   },
   field: {
     backgroundColor: COLORS.card,
@@ -223,7 +220,7 @@ function createStyles(COLORS: AppColors, fontScale: number) {
   },
   primaryButtonText: { fontSize: fs(17), fontWeight: '700', color: COLORS.accentText },
   settingsGroup: { backgroundColor: 'transparent' },
-  settingLabel: { fontSize: fs(13), color: COLORS.muted, marginTop: 28, marginBottom: 8, marginLeft: 16 },
+  settingLabel: { fontSize: fs(13), color: COLORS.muted, marginTop: 28, marginBottom: 8 },
   choiceRow: { flexDirection: 'row', gap: 8 },
   choice: {
     flex: 1,
@@ -236,8 +233,23 @@ function createStyles(COLORS: AppColors, fontScale: number) {
   },
   themeChoice: { minHeight: 72, paddingVertical: 10 },
   choiceActive: { backgroundColor: COLORS.accent },
-  choiceText: { color: COLORS.text, fontSize: fs(16), fontWeight: '600' },
+  choiceText: { color: COLORS.text, fontSize: fs(16), fontWeight: '600', textAlign: 'center' },
   choiceTextActive: { color: COLORS.accentText },
+  settingsCard: { backgroundColor: COLORS.card, borderRadius: 18, overflow: 'hidden' },
+  settingsRow: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+  },
+  settingsRowText: { flex: 1, color: COLORS.text, fontSize: fs(16), fontWeight: '600' },
+  settingsRowValue: { color: COLORS.muted, fontSize: fs(16) },
+  settingsSeparator: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 48,
+    backgroundColor: COLORS.separator,
+  },
   topActions: { flexDirection: 'row', gap: 8 },
   actionButton: {
     flexDirection: 'row',

@@ -21,7 +21,7 @@
       html,
       body {
         width: 100%;
-        height: 100%;
+        height: var(--app-height, 100%);
         min-height: 100%;
         margin: 0;
         background-color: #000000;
@@ -33,7 +33,7 @@
       /* These styles make the root element full-height */
       #root {
         display: flex;
-        height: 100%;
+        height: var(--app-height, 100%);
         min-height: 0;
         flex: 1;
       }
@@ -44,7 +44,7 @@
         html,
         body,
         #root {
-          height: 100dvh;
+          height: var(--app-height, 100dvh);
         }
       }
 
@@ -56,6 +56,34 @@
         box-shadow: none !important;
       }
     </style>
+    <script>
+      (function () {
+        function isIOS() {
+          return /iPad|iPhone|iPod/.test(navigator.userAgent)
+            || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        }
+
+        function updateAppHeight() {
+          var viewport = window.visualViewport;
+          var viewportHeight = viewport ? viewport.height : window.innerHeight;
+          var standalone = window.matchMedia('(display-mode: standalone)').matches
+            || navigator.standalone === true;
+          var keyboardOpen = viewportHeight < window.screen.height * 0.72;
+          var height = standalone && isIOS() && !keyboardOpen
+            ? Math.max(window.innerHeight, window.screen.height)
+            : viewportHeight;
+
+          document.documentElement.style.setProperty('--app-height', Math.ceil(height) + 'px');
+        }
+
+        updateAppHeight();
+        window.addEventListener('resize', updateAppHeight);
+        window.addEventListener('orientationchange', updateAppHeight);
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', updateAppHeight);
+        }
+      })();
+    </script>
   </head>
 
   <body>

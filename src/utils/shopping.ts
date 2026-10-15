@@ -274,6 +274,14 @@ export function reorderShoppingItems(current: ShoppingItem[], orderedIds: string
   return orderedIds.map((id) => itemsById.get(id)!);
 }
 
+export function orderShoppingItems(items: ShoppingItem[], completedLast: boolean) {
+  if (!completedLast) return items;
+  return [
+    ...items.filter((item) => !item.checked),
+    ...items.filter((item) => item.checked),
+  ];
+}
+
 export function migrateShoppingItems(value: unknown): ShoppingItem[] {
   if (!Array.isArray(value)) return [];
 

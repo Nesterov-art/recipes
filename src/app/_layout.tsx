@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Stack } from 'expo-router/js-stack';
+import { Stack } from 'expo-router';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -12,30 +12,9 @@ import { ShoppingProvider, useShopping } from '@/context/shopping-context';
 import { ToastProvider } from '@/context/toast-context';
 
 function RootNavigator() {
-  const [webHistoryNavigating, setWebHistoryNavigating] = useState(false);
-  const historyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { loaded: recipesLoaded } = useRecipes();
   const { loaded: shoppingLoaded } = useShopping();
   const { colors, loaded: settingsLoaded } = useSettings();
-
-  useEffect(() => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
-
-    const handlePopState = () => {
-      setWebHistoryNavigating(true);
-      if (historyResetRef.current) clearTimeout(historyResetRef.current);
-      historyResetRef.current = setTimeout(() => {
-        setWebHistoryNavigating(false);
-        historyResetRef.current = null;
-      }, 300);
-    };
-
-    window.addEventListener('popstate', handlePopState, { capture: true });
-    return () => {
-      window.removeEventListener('popstate', handlePopState, { capture: true });
-      if (historyResetRef.current) clearTimeout(historyResetRef.current);
-    };
-  }, []);
 
   if (!recipesLoaded || !settingsLoaded || !shoppingLoaded) return null;
 
@@ -43,19 +22,7 @@ function RootNavigator() {
     <Stack
       screenOptions={{
         headerShown: false,
-        gestureEnabled: Platform.OS !== 'web',
-        // Safari already animates its interactive edge-swipe. Avoid replaying
-        // the stack animation after popstate, while keeping button transitions.
-        animation: webHistoryNavigating ? 'none' : 'slide_from_right',
-        // Expo web keeps document.body non-scrollable. Constrain the card to
-        // the visible app viewport so every screen's own list remains the
-        // scroll container without switching to a floating-header layout.
-        cardStyle: {
-          flex: 1,
-          height: '100%',
-          overflow: 'hidden',
-          backgroundColor: colors.bg,
-        },
+        contentStyle: { backgroundColor: colors.bg },
       }}
     >
       <Stack.Screen name="index" />
@@ -66,16 +33,16 @@ function RootNavigator() {
       <Stack.Screen name="settings" />
       <Stack.Screen
         name="cook"
-        options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
       />
       <Stack.Screen
         name="shopping-select"
-        options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
       />
       <Stack.Screen
         name="form"
         options={{
-          presentation: 'modal',
+          presentation: 'fullScreenModal',
           animation: 'slide_from_bottom',
           gestureEnabled: false,
         }}
@@ -85,7 +52,7 @@ function RootNavigator() {
 }
 
 function AppContent() {
-  const { colors, theme } = useSettings();
+  const { colors, resolvedTheme } = useSettings();
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
@@ -105,7 +72,7 @@ function AppContent() {
           </RecipesProvider>
         </ShoppingProvider>
       </ToastProvider>
-      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={resolvedTheme === 'dark' ? 'light' : 'dark'} />
     </SafeAreaProvider>
   );
 }

@@ -6,6 +6,7 @@ import {
   mergeShoppingEntries,
   migrateShoppingItems,
   normalizeProductName,
+  orderShoppingItems,
   parseShoppingEntry,
   reorderShoppingItems,
   updateShoppingItem,
@@ -126,4 +127,20 @@ test('rejects an incomplete order instead of dropping shopping items', () => {
   const original = [item('Лук', 'onion'), item('Молоко', 'milk')];
   assert.equal(reorderShoppingItems(original, ['onion']), original);
   assert.equal(reorderShoppingItems(original, ['onion', 'onion']), original);
+});
+
+test('moves checked items down without changing order inside either group', () => {
+  const first = item('Молоко', 'milk');
+  const second = { ...item('Хлеб', 'bread'), checked: true };
+  const third = item('Яйца', 'eggs');
+  const fourth = { ...item('Соль', 'salt'), checked: true };
+  const original = [first, second, third, fourth];
+
+  assert.equal(orderShoppingItems(original, false), original);
+  assert.deepEqual(orderShoppingItems(original, true).map(({ id }) => id), [
+    'milk',
+    'eggs',
+    'bread',
+    'salt',
+  ]);
 });

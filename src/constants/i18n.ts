@@ -2,7 +2,7 @@ export type Language = 'ru' | 'en';
 
 const ru = {
   appTitle: 'Рецепты', settings: 'Настройки', appearance: 'Оформление', language: 'Язык',
-  light: 'Светлая', dark: 'Тёмная', russian: 'Русский', english: 'English',
+  systemTheme: 'Как в системе', light: 'Светлая', dark: 'Тёмная', russian: 'Русский', english: 'English',
   textSize: 'Размер текста', textSmall: 'Мелкий', textStandard: 'Обычный', textLarge: 'Крупный',
   inBook: 'В книге', average: 'В среднем', found: 'Найдено: {count}', allRecipes: 'Все рецепты',
   searchPlaceholder: 'Название или ингредиент', searchRecipes: 'Поиск рецептов',
@@ -34,6 +34,9 @@ const ru = {
   shoppingEmptyHint: 'Добавляй продукты вручную или из рецепта.',
   shoppingPlaceholder: 'Добавить продукт', addItem: 'Добавить продукт', clearCompleted: 'Удалить отмеченные',
   shoppingItemGestureHint: 'Удерживайте для перемещения. Смахните влево для удаления.',
+  shoppingBehavior: 'Список покупок',
+  keepCompletedInPlace: 'Оставлять на месте', moveCompletedDown: 'Переносить вниз',
+  aboutApp: 'О приложении', feedback: 'Обратная связь', version: 'Версия',
   whatCanCook: 'Что можно приготовить?',
   shoppingMatchesHint: 'Подбор по всем продуктам из списка, независимо от отметок.',
   matchedIngredients: 'Совпало: {matched} из {total}',
@@ -60,7 +63,7 @@ type TranslationKey = keyof typeof ru;
 
 const en: Record<TranslationKey, string> = {
   appTitle: 'Recipes', settings: 'Settings', appearance: 'Appearance', language: 'Language',
-  light: 'Light', dark: 'Dark', russian: 'Русский', english: 'English',
+  systemTheme: 'Use system setting', light: 'Light', dark: 'Dark', russian: 'Русский', english: 'English',
   textSize: 'Text size', textSmall: 'Small', textStandard: 'Standard', textLarge: 'Large',
   inBook: 'In the book', average: 'On average', found: 'Found: {count}', allRecipes: 'All recipes',
   searchPlaceholder: 'Recipe or ingredient', searchRecipes: 'Search recipes',
@@ -91,6 +94,9 @@ const en: Record<TranslationKey, string> = {
   shoppingEmptyHint: 'Add items manually or from a recipe.', shoppingPlaceholder: 'Add an item',
   addItem: 'Add item', clearCompleted: 'Remove checked items',
   shoppingItemGestureHint: 'Touch and hold to move. Swipe left to delete.',
+  shoppingBehavior: 'Shopping list',
+  keepCompletedInPlace: 'Keep in place', moveCompletedDown: 'Move to bottom',
+  aboutApp: 'About', feedback: 'Feedback', version: 'Version',
   whatCanCook: 'What can I cook?',
   shoppingMatchesHint: 'Matches use every item on the list, regardless of checkmarks.',
   matchedIngredients: 'Matched: {matched} of {total}',
