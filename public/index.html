@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Рецепты" />
     <link rel="manifest" href="/manifest.json" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-book-dark.png" />
     <title>%WEB_TITLE%</title>
     <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
     <style id="expo-reset">
@@ -69,9 +69,13 @@
           var standalone = window.matchMedia('(display-mode: standalone)').matches
             || navigator.standalone === true;
           var keyboardOpen = viewportHeight < window.screen.height * 0.72;
+          // Safari can pan the visual viewport when focusing a field. Its
+          // bottom is offsetTop + height, not height alone. Shrinking the
+          // root to height alone leaves a blank strip above the keyboard.
+          var visibleBottom = viewportHeight + Math.max(0, viewport ? viewport.offsetTop : 0);
           var height = standalone && isIOS() && !keyboardOpen
             ? Math.max(window.innerHeight, window.screen.height)
-            : viewportHeight;
+            : visibleBottom;
 
           document.documentElement.style.setProperty('--app-height', Math.ceil(height) + 'px');
         }
@@ -81,6 +85,7 @@
         window.addEventListener('orientationchange', updateAppHeight);
         if (window.visualViewport) {
           window.visualViewport.addEventListener('resize', updateAppHeight);
+          window.visualViewport.addEventListener('scroll', updateAppHeight);
         }
       })();
     </script>

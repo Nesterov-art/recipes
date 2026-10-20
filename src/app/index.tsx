@@ -34,8 +34,11 @@ export default function HomeScreen() {
   // Indicator. Applying the CSS safe-area value again lifts the bar twice.
   const effectiveBottomInset = Platform.OS === 'web' ? 0 : insets.bottom;
   const bottomBarOffset = Math.max(effectiveBottomInset, MIN_BOTTOM_GAP);
+  const hideBottomBar = keyboardVisible || searchFocused;
+  // Keep the list geometry stable while the keyboard opens. Only the floating
+  // controls disappear; changing the content inset here makes iOS visibly
+  // nudge the focused search field during its own viewport adjustment.
   const listBottomPadding = bottomBarOffset + BOTTOM_BAR_HEIGHT + LIST_TO_BAR_GAP;
-  const hideBottomBar = keyboardVisible;
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
@@ -158,7 +161,6 @@ export default function HomeScreen() {
           onChangeText={setQuery}
           onFocus={() => {
             setSearchFocused(true);
-            setKeyboardVisible(true);
           }}
           onBlur={() => {
             setSearchFocused(false);

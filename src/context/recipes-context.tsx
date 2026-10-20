@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createContext,
+  useCallback,
   type PropsWithChildren,
   useContext,
   useEffect,
@@ -12,7 +13,6 @@ import { Alert } from 'react-native';
 
 import {
   CATEGORIES,
-  INITIAL_RECIPES,
   META_STORAGE_KEY,
   QUICK_TIME,
   type Recipe,
@@ -23,11 +23,12 @@ import {
   STORAGE_KEY,
 } from '@/constants/recipes';
 import { emptyRecipeMeta, isRecipe, isRecipeMetaById } from '@/utils/recipes';
+import { BOOK_STORAGE_KEY, mergeRecipeBackup, type RecipeBackup } from '@/utils/recipe-backup';
 import { pickSmartRandom } from '@/utils/smart-random';
 import { useSettings } from '@/context/settings-context';
 import { useToast } from '@/context/toast-context';
 
-export type RecipeSort = 'recent' | 'asc' | 'desc';
+type RecipeSort = 'recent' | 'asc' | 'desc';
 
 type RecipesContextValue = {
   recipes: Recipe[];
@@ -43,6 +44,7 @@ type RecipesContextValue = {
   getRecipeMeta: (id: string) => RecipeMeta;
   toggleFavorite: (id: string) => void;
   recordCooking: (id: string, details?: { rating?: CookingRating; note?: string }) => void;
+  importRecipes: (backup: RecipeBackup) => Promise<ReturnType<typeof mergeRecipeBackup>>;
   addRecipe: (recipe: Recipe) => void;
   updateRecipe: (recipe: Recipe) => void;
   deleteRecipe: (id: string) => void;
@@ -60,7 +62,7 @@ export function useRecipes() {
 export function RecipesProvider({ children }: PropsWithChildren) {
   const { language, t } = useSettings();
   const { showToast } = useToast();
-  const [recipes, setRecipes] = useState<Recipe[]>(INITIAL_RECIPES);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [recipeMeta, setRecipeMeta] = useState<RecipeMetaById>({});
   const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState('');
@@ -68,13 +70,42 @@ export function RecipesProvider({ children }: PropsWithChildren) {
   const [sort, setSort] = useState<RecipeSort>('recent');
   const lastRandomId = useRef<string | null>(null);
 
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const persistBook = useCallback((nextRecipes: Recipe[], nextMeta: RecipeMetaById) => {
+    const write = saveQueue.current.catch(() => {}).then(async () => {
+      // One authoritative write commits recipes and history together. Legacy keys
+      // remain mirrors for backwards compatibility, never the source after migration.
+      await AsyncStorage.setItem(BOOK_STORAGE_KEY, JSON.stringify({ recipes: nextRecipes, recipeMeta: nextMeta }));
+      await AsyncStorage.multiSet([
+        [STORAGE_KEY, JSON.stringify(nextRecipes)],
+        [META_STORAGE_KEY, JSON.stringify(nextMeta)],
+      ]).catch(error => console.warn('Unable to update legacy recipe mirrors', error));
+    });
+    saveQueue.current = write;
+    return write;
+  }, []);
+
   useEffect(() => {
     async function load() {
       try {
-        const [recipesJson, metaJson] = await Promise.all([
+        const [recipesJson, metaJson, bookJson] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEY),
           AsyncStorage.getItem(META_STORAGE_KEY),
+          AsyncStorage.getItem(BOOK_STORAGE_KEY),
         ]);
+        if (bookJson) {
+          try {
+            const book: unknown = JSON.parse(bookJson);
+            if (book && typeof book === 'object' && 'recipes' in book && 'recipeMeta' in book
+              && Array.isArray(book.recipes) && book.recipes.every(isRecipe) && isRecipeMetaById(book.recipeMeta)) {
+              setRecipes(book.recipes);
+              setRecipeMeta(book.recipeMeta);
+              return;
+            }
+          } catch (error) {
+            console.warn('Unable to read recipe book; trying legacy data', error);
+          }
+        }
         if (recipesJson) {
           const parsed: unknown = JSON.parse(recipesJson);
           if (Array.isArray(parsed) && parsed.every(isRecipe)) setRecipes(parsed);
@@ -94,17 +125,8 @@ export function RecipesProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!loaded) return;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(recipes)).catch((error) => {
-      console.warn('Ошибка сохранения рецептов', error);
-    });
-  }, [loaded, recipes]);
-
-  useEffect(() => {
-    if (!loaded) return;
-    AsyncStorage.setItem(META_STORAGE_KEY, JSON.stringify(recipeMeta)).catch((error) => {
-      console.warn('Ошибка сохранения данных рецептов', error);
-    });
-  }, [loaded, recipeMeta]);
+    void persistBook(recipes, recipeMeta).catch(error => console.warn('Unable to save recipe book', error));
+  }, [loaded, persistBook, recipeMeta, recipes]);
 
   const visible = useMemo(() => {
     const terms = query.toLowerCase().split(/[,\s]+/).filter(Boolean);
@@ -163,6 +185,14 @@ export function RecipesProvider({ children }: PropsWithChildren) {
         });
         showToast(t('cookingSaved'));
       },
+      importRecipes: async (backup) => {
+        const result = mergeRecipeBackup(recipes, recipeMeta, backup);
+        // Failed writes leave the visible collection untouched and can be retried.
+        await persistBook(result.recipes, result.recipeMeta);
+        setRecipes(result.recipes);
+        setRecipeMeta(result.recipeMeta);
+        return result;
+      },
       addRecipe: (recipe) => {
         setRecipes((current) => [recipe, ...current]);
         showToast(t('recipeCreated'));
@@ -198,7 +228,7 @@ export function RecipesProvider({ children }: PropsWithChildren) {
         return recipe;
       },
     }),
-    [filter, loaded, query, recipeMeta, recipes, showToast, sort, t, visible],
+    [filter, loaded, persistBook, query, recipeMeta, recipes, showToast, sort, t, visible],
   );
 
   return <RecipesContext.Provider value={value}>{children}</RecipesContext.Provider>;

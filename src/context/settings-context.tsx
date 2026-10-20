@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, type PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
 
+import { useSystemFontScale } from '@/hooks/use-system-font-scale';
+
 import { createTranslator, type Language, type Translate } from '@/constants/i18n';
 import {
   THEMES,
@@ -12,14 +14,7 @@ import {
 
 const SETTINGS_KEY = 'app-settings-v1';
 
-export type TextSize = 'small' | 'standard' | 'large';
 export type ShoppingCompletedBehavior = 'keep' | 'moveDown';
-
-const TEXT_SCALES: Record<TextSize, number> = {
-  small: 0.9,
-  standard: 1,
-  large: 1.12,
-};
 
 type SettingsContextValue = {
   loaded: boolean;
@@ -28,8 +23,6 @@ type SettingsContextValue = {
   resolvedTheme: ResolvedThemeMode;
   language: Language;
   setLanguage: (value: Language) => void;
-  textSize: TextSize;
-  setTextSize: (value: TextSize) => void;
   shoppingCompletedBehavior: ShoppingCompletedBehavior;
   setShoppingCompletedBehavior: (value: ShoppingCompletedBehavior) => void;
   fontScale: number;
@@ -50,7 +43,7 @@ export function SettingsProvider({ children }: PropsWithChildren) {
   const [loaded, setLoaded] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>('system');
   const [language, setLanguage] = useState<Language>('ru');
-  const [textSize, setTextSize] = useState<TextSize>('standard');
+  const fontScale = useSystemFontScale();
   const [shoppingCompletedBehavior, setShoppingCompletedBehavior] =
     useState<ShoppingCompletedBehavior>('moveDown');
 
@@ -62,16 +55,12 @@ export function SettingsProvider({ children }: PropsWithChildren) {
           const value = JSON.parse(json) as {
             theme?: unknown;
             language?: unknown;
-            textSize?: unknown;
             shoppingCompletedBehavior?: unknown;
           };
           if (value.theme === 'system' || value.theme === 'light' || value.theme === 'dark') {
             setTheme(value.theme);
           }
           if (value.language === 'ru' || value.language === 'en') setLanguage(value.language);
-          if (value.textSize === 'small' || value.textSize === 'standard' || value.textSize === 'large') {
-            setTextSize(value.textSize);
-          }
           if (
             value.shoppingCompletedBehavior === 'keep'
             || value.shoppingCompletedBehavior === 'moveDown'
@@ -93,23 +82,22 @@ export function SettingsProvider({ children }: PropsWithChildren) {
     AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({
       theme,
       language,
-      textSize,
       shoppingCompletedBehavior,
     })).catch((error) => {
       console.warn('Unable to save settings', error);
     });
-  }, [language, loaded, shoppingCompletedBehavior, textSize, theme]);
+  }, [language, loaded, shoppingCompletedBehavior, theme]);
 
   const resolvedTheme: ResolvedThemeMode = theme === 'system'
     ? systemColorScheme === 'light' ? 'light' : 'dark'
     : theme;
 
   const value = useMemo<SettingsContextValue>(() => ({
-    loaded, theme, setTheme, resolvedTheme, language, setLanguage, textSize, setTextSize,
+    loaded, theme, setTheme, resolvedTheme, language, setLanguage,
     shoppingCompletedBehavior, setShoppingCompletedBehavior,
-    fontScale: TEXT_SCALES[textSize],
+    fontScale,
     colors: THEMES[resolvedTheme], t: createTranslator(language),
-  }), [language, loaded, resolvedTheme, shoppingCompletedBehavior, textSize, theme]);
+  }), [fontScale, language, loaded, resolvedTheme, shoppingCompletedBehavior, theme]);
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }

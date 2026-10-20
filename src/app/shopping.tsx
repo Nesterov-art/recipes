@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable as GesturePressable } from 'react-native-gesture-handler';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
 import ReanimatedSwipeable, {
   type SwipeableMethods,
@@ -31,6 +32,7 @@ export default function ShoppingScreen() {
   const [editingValue, setEditingValue] = useState('');
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const swipeableRefs = useRef(new Map<string, SwipeableMethods>());
+  const suppressRowActionsUntil = useRef(0);
   const hasCompleted = items.some((item) => item.checked);
   const displayedItems = useMemo(
     () => orderShoppingItems(items, shoppingCompletedBehavior === 'moveDown'),
@@ -49,7 +51,7 @@ export default function ShoppingScreen() {
   }
 
   function startEditing(id: string, text: string) {
-    if (draggingId) return;
+    if (draggingId || Date.now() < suppressRowActionsUntil.current) return;
     closeSwipeables();
     setEditingId(id);
     setEditingValue(text);
@@ -81,23 +83,30 @@ export default function ShoppingScreen() {
         dragOffsetFromRightEdge={18}
         overshootRight={false}
         containerStyle={styles.shoppingCard}
+        childrenContainerStyle={styles.shoppingSwipeContent}
         onSwipeableWillOpen={() => closeSwipeables(item.id)}
         renderRightActions={(_progress, _translation, swipeable) => (
-          <Pressable
+          <GesturePressable
             onPress={() => {
+              // Keep the release that confirmed deletion from landing on the
+              // edit button of the row that immediately moves into its place.
+              suppressRowActionsUntil.current = Date.now() + 500;
+              cancelEditing();
               swipeable.close();
-              removeItem(item.id);
+              requestAnimationFrame(() => removeItem(item.id));
             }}
             style={({ pressed }) => [styles.shoppingSwipeDelete, pressed && styles.pressed]}
             accessibilityRole="button"
             accessibilityLabel={t('delete')}
           >
-            <Ionicons name="trash-outline" size={20} color={colors.danger} />
+            <View style={styles.shoppingSwipeDeleteCircle}>
+              <Ionicons name="trash-outline" size={23} color="#FFFFFF" />
+            </View>
             <Text style={styles.shoppingSwipeDeleteText}>{t('delete')}</Text>
-          </Pressable>
+          </GesturePressable>
         )}
       >
-        <View style={styles.shoppingRow}>
+        <View style={styles.shoppingRow} testID="shopping-row">
           {editingId === item.id ? (
             <View style={styles.shoppingEditRow}>
               <TextInput
@@ -133,11 +142,15 @@ export default function ShoppingScreen() {
           ) : (
             <>
               <Pressable
-                onPress={() => toggleItem(item.id)}
+                onPress={() => {
+                  if (Date.now() >= suppressRowActionsUntil.current) toggleItem(item.id);
+                }}
                 disabled={interactionsDisabled}
                 hitSlop={6}
                 style={({ pressed }) => [styles.shoppingCheckbox, pressed && styles.pressed]}
                 accessibilityRole="checkbox"
+                accessibilityLabel={item.text}
+                aria-checked={item.checked}
                 accessibilityState={{ checked: item.checked, disabled: interactionsDisabled }}
               >
                 <Ionicons
@@ -147,6 +160,7 @@ export default function ShoppingScreen() {
                 />
               </Pressable>
               <Pressable
+                testID="shopping-drag"
                 onLongPress={drag}
                 delayLongPress={350}
                 disabled={isActive || gesturesDisabled}

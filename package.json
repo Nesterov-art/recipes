@@ -33,10 +33,17 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "test": "node --test src/utils/shopping.test.mjs src/utils/recipe-matches.test.mjs"
+    "test": "node --test src/utils/shopping.test.mjs src/utils/recipe-matches.test.mjs src/utils/recipe-backup.test.mjs",
+    "web:e2e": "expo export --platform web && node scripts/serve-e2e.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:visual": "playwright test --grep @visual",
+    "test:visual:update": "playwright test --grep @visual --update-snapshots",
+    "test:e2e:report": "playwright show-report"
   },
   "private": true,
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "@types/react": "~19.2.4",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~57.0.2",

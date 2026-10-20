@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
 import type { AppColors } from '@/constants/theme';
 import { useSettings } from '@/context/settings-context';
@@ -107,7 +107,8 @@ function createStyles(COLORS: AppColors, fontScale: number) {
   },
   searchInput: {
     flex: 1,
-    fontSize: fs(17),
+    // iOS web apps may zoom a focused field below 16 CSS pixels.
+    fontSize: Platform.OS === 'web' ? Math.max(16, fs(17)) : fs(17),
     color: COLORS.text,
     outlineWidth: 0,
     outlineColor: 'transparent',
@@ -346,24 +347,34 @@ function createStyles(COLORS: AppColors, fontScale: number) {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    minHeight: 56,
+    minHeight: 76,
     paddingHorizontal: 16,
+    borderRadius: 20,
     backgroundColor: COLORS.card,
   },
   shoppingCard: {
     marginBottom: 8,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: COLORS.cardPressed,
+    backgroundColor: 'transparent',
   },
+  shoppingSwipeContent: { borderRadius: 20, overflow: 'hidden' },
   shoppingSwipeDelete: {
-    width: 96,
+    width: 88,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
-    backgroundColor: COLORS.cardPressed,
+    gap: 4,
+    backgroundColor: 'transparent',
   },
-  shoppingSwipeDeleteText: { fontSize: fs(13), fontWeight: '600', color: COLORS.danger },
+  shoppingSwipeDeleteCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FF3B30',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shoppingSwipeDeleteText: { fontSize: fs(12), fontWeight: '500', color: COLORS.muted },
   shoppingCheckbox: {
     width: 28,
     alignSelf: 'stretch',
@@ -381,7 +392,8 @@ function createStyles(COLORS: AppColors, fontScale: number) {
     borderRadius: 12,
     backgroundColor: COLORS.bg,
     color: COLORS.text,
-    fontSize: fs(16),
+    // Mobile Safari zooms the page when a focused web input is below 16 CSS px.
+    fontSize: Platform.OS === 'web' ? Math.max(16, fs(16)) : fs(16),
     outlineWidth: 0,
     outlineColor: 'transparent',
   },

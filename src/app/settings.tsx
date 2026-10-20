@@ -10,8 +10,10 @@ import type { ThemeMode } from '@/constants/theme';
 import {
   useSettings,
   type ShoppingCompletedBehavior,
-  type TextSize,
 } from '@/context/settings-context';
+import { useOnboarding } from '@/context/onboarding-context';
+import { useToast } from '@/context/toast-context';
+import { RecipeTransfer } from '@/components/recipe-transfer';
 import { useStyles } from '@/styles';
 
 const FEEDBACK_URL = 'https://github.com/Nesterov-art/recipes/issues/new';
@@ -23,14 +25,14 @@ export default function SettingsScreen() {
     language,
     setLanguage,
     setShoppingCompletedBehavior,
-    setTextSize,
     setTheme,
     shoppingCompletedBehavior,
     t,
-    textSize,
     theme,
   } = useSettings();
   const styles = useStyles();
+  const { restart } = useOnboarding();
+  const { showToast } = useToast();
   const appVersion = Constants.expoConfig?.version ?? '—';
 
   const themes: { value: ThemeMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
@@ -41,11 +43,6 @@ export default function SettingsScreen() {
   const languages: { value: Language; label: string }[] = [
     { value: 'ru', label: t('russian') },
     { value: 'en', label: t('english') },
-  ];
-  const textSizes: { value: TextSize; label: string }[] = [
-    { value: 'small', label: t('textSmall') },
-    { value: 'standard', label: t('textStandard') },
-    { value: 'large', label: t('textLarge') },
   ];
   const shoppingBehaviors: { value: ShoppingCompletedBehavior; label: string }[] = [
     { value: 'keep', label: t('keepCompletedInPlace') },
@@ -99,6 +96,7 @@ export default function SettingsScreen() {
                     pressed && styles.pressed,
                   ]}
                   accessibilityRole="button"
+                  aria-selected={active}
                   accessibilityState={{ selected: active }}
                 >
                   <Ionicons
@@ -128,30 +126,7 @@ export default function SettingsScreen() {
                     pressed && styles.pressed,
                   ]}
                   accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                >
-                  <Text style={[styles.choiceText, active && styles.choiceTextActive]}>{item.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        <Text style={styles.settingLabel}>{t('textSize')}</Text>
-        <View style={styles.settingsGroup}>
-          <View style={styles.choiceRow}>
-            {textSizes.map((item) => {
-              const active = textSize === item.value;
-              return (
-                <Pressable
-                  key={item.value}
-                  onPress={() => setTextSize(item.value)}
-                  style={({ pressed }) => [
-                    styles.choice,
-                    active && styles.choiceActive,
-                    pressed && styles.pressed,
-                  ]}
-                  accessibilityRole="button"
+                  aria-selected={active}
                   accessibilityState={{ selected: active }}
                 >
                   <Text style={[styles.choiceText, active && styles.choiceTextActive]}>{item.label}</Text>
@@ -176,6 +151,7 @@ export default function SettingsScreen() {
                     pressed && styles.pressed,
                   ]}
                   accessibilityRole="button"
+                  aria-selected={active}
                   accessibilityState={{ selected: active }}
                 >
                   <Text style={[styles.choiceText, active && styles.choiceTextActive]}>
@@ -187,8 +163,21 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        <RecipeTransfer />
+
         <Text style={styles.settingLabel}>{t('aboutApp')}</Text>
         <View style={styles.settingsCard}>
+          <Pressable
+            accessibilityLabel={t('onboardingReplay')}
+            onPress={() => { void restart().catch(() => showToast(t('onboardingSaveError'))); }}
+            style={({ pressed }) => [styles.settingsRow, pressed && styles.pressed]}
+            accessibilityRole="button"
+          >
+            <Ionicons name="book-outline" size={20} color={colors.text} />
+            <Text style={styles.settingsRowText}>{t('onboardingReplay')}</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          </Pressable>
+          <View style={styles.settingsSeparator} />
           <Pressable
             onPress={openFeedback}
             style={({ pressed }) => [styles.settingsRow, pressed && styles.pressed]}

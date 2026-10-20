@@ -42,3 +42,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Playwright generated reports (reference screenshots are committed)
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/

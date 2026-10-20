@@ -1,7 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="100%" height="100%" role="img" aria-label="Cooking app icon mark">
-  <g fill="#FFF6E8">
-    <path d="M48 128 H208 C204 181 174 212 128 212 C82 212 52 181 48 128 Z"/>
-    <path d="M80 104 C76 62 100 40 136 40 C140 78 120 104 80 104 Z"/>
-    <path d="M152 104 C152 80 174 60 200 60 C200 88 178 104 152 104 Z"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Recipe book with chef hat">
+  <title>Recipe book with chef hat</title>
+  <defs><mask id="book"><rect x="56" y="40" width="144" height="176" rx="16" fill="white"/>
+    <rect x="68" y="190" width="142" height="14" rx="7" fill="black"/>
+    <g fill="black"><circle cx="128" cy="104" r="22"/><circle cx="106" cy="122" r="18"/><circle cx="150" cy="122" r="18"/>
+      <path d="M106 122h44v31h-44z"/><rect x="106" y="158" width="44" height="6" rx="3"/></g>
+  </mask></defs>
+
+  <rect width="256" height="256" fill="white" mask="url(#book)"/>
 </svg>

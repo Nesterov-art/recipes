@@ -91,6 +91,7 @@ export default function ShoppingSelectScreen() {
                 onPress={() => toggle(index)}
                 style={({ pressed }) => [styles.ingredientSelectRow, pressed && styles.pressed]}
                 accessibilityRole="checkbox"
+                aria-checked={checked}
                 accessibilityState={{ checked }}
               >
                 {index > 0 && <View style={styles.separator} />}

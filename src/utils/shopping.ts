@@ -7,7 +7,7 @@ export type ShoppingItem = {
   checked: boolean;
 };
 
-export type ParsedShoppingEntry = {
+type ParsedShoppingEntry = {
   name: string;
   quantity?: number;
   unit?: string;
@@ -145,7 +145,7 @@ function formatQuantity(value: number) {
   return String(rounded(value)).replace('.', ',');
 }
 
-export function formatShoppingItem(item: Pick<ShoppingItem, 'name' | 'quantity' | 'unit'>) {
+function formatShoppingItem(item: Pick<ShoppingItem, 'name' | 'quantity' | 'unit'>) {
   if (item.quantity === undefined) return item.name;
   return `${item.name} — ${formatQuantity(item.quantity)}${item.unit ? ` ${item.unit}` : ''}`;
 }

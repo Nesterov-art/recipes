@@ -5,6 +5,8 @@ import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { Onboarding } from '@/components/onboarding';
+import { OnboardingProvider, useOnboarding } from '@/context/onboarding-context';
 import { AppToast } from '@/components/app-toast';
 import { RecipesProvider, useRecipes } from '@/context/recipes-context';
 import { SettingsProvider, useSettings } from '@/context/settings-context';
@@ -12,11 +14,14 @@ import { ShoppingProvider, useShopping } from '@/context/shopping-context';
 import { ToastProvider } from '@/context/toast-context';
 
 function RootNavigator() {
+  const { completed } = useOnboarding();
   const { loaded: recipesLoaded } = useRecipes();
   const { loaded: shoppingLoaded } = useShopping();
   const { colors, loaded: settingsLoaded } = useSettings();
 
   if (!recipesLoaded || !settingsLoaded || !shoppingLoaded) return null;
+
+  if (!completed) return <Onboarding />;
 
   return (
     <Stack
@@ -79,10 +84,12 @@ function AppContent() {
 
 export default function RootLayout() {
   return (
-    <SettingsProvider>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <AppContent />
-      </GestureHandlerRootView>
-    </SettingsProvider>
+    <OnboardingProvider>
+      <SettingsProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <AppContent />
+        </GestureHandlerRootView>
+      </SettingsProvider>
+    </OnboardingProvider>
   );
 }
