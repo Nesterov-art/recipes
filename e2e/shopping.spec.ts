@@ -1,4 +1,4 @@
-import { test, expect, openHome, addItem, rows, expectOrder, shopping } from './fixtures';
+import { test, expect, openHome, addItem, rows, expectOrder, shopping, revealShoppingActions } from './fixtures';
 
 test('manual add, compatible quantity merge, edit, check and clear persist', async ({ page, context }) => {
   await openHome(page);
@@ -10,7 +10,9 @@ test('manual add, compatible quantity merge, edit, check and clear persist', asy
   await expect(rows(page).getByTestId('shopping-drag')).toHaveText('Молоко — 1500 мл');
   await addItem(page, 'Хлеб');
   const bread = rows(page).nth(1);
-  await bread.getByRole('button', { name: 'Изменить' }).click();
+  await expect(bread.getByRole('button', { name: 'Изменить' })).toHaveCount(0);
+  await revealShoppingActions(page, bread);
+  await page.getByRole('button', { name: 'Изменить', exact: true }).nth(1).click();
   await bread.getByRole('textbox').fill('Хлеб — 2 шт');
   await bread.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await expectOrder(page, ['Молоко — 1500 мл', 'Хлеб — 2 шт.']);

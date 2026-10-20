@@ -359,22 +359,24 @@ function createStyles(COLORS: AppColors, fontScale: number) {
     backgroundColor: 'transparent',
   },
   shoppingSwipeContent: { borderRadius: 20, overflow: 'hidden' },
-  shoppingSwipeDelete: {
+  shoppingSwipeActions: { flexDirection: 'row' },
+  shoppingSwipeAction: {
     width: 88,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
     backgroundColor: 'transparent',
   },
-  shoppingSwipeDeleteCircle: {
+  shoppingSwipeActionCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FF3B30',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shoppingSwipeDeleteText: { fontSize: fs(12), fontWeight: '500', color: COLORS.muted },
+  shoppingSwipeEditCircle: { backgroundColor: COLORS.cardPressed },
+  shoppingSwipeDeleteCircle: { backgroundColor: '#FF3B30' },
+  shoppingSwipeActionText: { fontSize: fs(12), fontWeight: '500', color: COLORS.muted },
   shoppingCheckbox: {
     width: 28,
     alignSelf: 'stretch',
@@ -404,7 +406,6 @@ function createStyles(COLORS: AppColors, fontScale: number) {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shoppingRowAction: { padding: 8, marginRight: -8 },
   recipeMatchRow: {
     minHeight: 132,
     paddingVertical: 16,

@@ -1,5 +1,5 @@
 import { type Locator, type Page } from '@playwright/test';
-import { test, expect, shopping, rows, expectOrder } from './fixtures';
+import { test, expect, shopping, rows, expectOrder, revealShoppingActions } from './fixtures';
 
 test.use({ seedShopping: [shopping, { scope: 'test' }] });
 
@@ -40,11 +40,15 @@ test('pointer swipe exposes delete and removal survives reload', async ({ page }
 
 test('shopping edit keeps a non-zooming input size on mobile web', async ({ page }) => {
   await page.goto('/shopping');
+  await revealShoppingActions(page, rows(page).first());
   await page.getByRole('button', { name: 'Изменить', exact: true }).first().click();
   const inputs = page.getByRole('textbox');
   await expect(inputs).toHaveCount(2);
   await expect.poll(() => inputs.nth(1).evaluate(element => parseFloat(getComputedStyle(element).fontSize)))
     .toBeGreaterThanOrEqual(16);
+  await inputs.nth(1).fill('молоко — 2 л');
+  await page.getByRole('button', { name: 'Отмена', exact: true }).click();
+  await expectOrder(page, shopping.map(item => item.text));
 });
 
 test('pointer long press reorders the actual list and saved order', async ({ page }) => {
@@ -79,9 +83,9 @@ test('Chromium touch input: swipe opens delete and touch removes the item', asyn
   const dragStartX = (await row.getByTestId('shopping-drag').boundingBox())!.x;
   await touchDrag(row.getByTestId('shopping-drag'), -160, 0);
   const deleteButton = page.getByRole('button', { name: 'Удалить', exact: true }).first();
-  const deleteWidth = (await deleteButton.boundingBox())!.width;
+  const actionsWidth = (await page.getByTestId('shopping-swipe-actions').first().boundingBox())!.width;
   await expect.poll(async () => Math.round((await row.getByTestId('shopping-drag').boundingBox())!.x))
-    .toBe(Math.round(dragStartX - deleteWidth));
+    .toBe(Math.round(dragStartX - actionsWidth));
   await deleteButton.tap();
   await expectOrder(page, ['хлеб', 'сыр — 50 г']);
   await expect(page.getByRole('textbox')).toHaveCount(1);

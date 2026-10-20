@@ -51,8 +51,10 @@ export default function ShoppingScreen() {
   }
 
   function startEditing(id: string, text: string) {
-    if (draggingId || Date.now() < suppressRowActionsUntil.current) return;
-    closeSwipeables();
+    if (draggingId) return;
+    closeSwipeables(id);
+    // Restore the full card before autoFocus can make Safari pan to the field.
+    swipeableRefs.current.get(id)?.reset();
     setEditingId(id);
     setEditingValue(text);
   }
@@ -86,24 +88,41 @@ export default function ShoppingScreen() {
         childrenContainerStyle={styles.shoppingSwipeContent}
         onSwipeableWillOpen={() => closeSwipeables(item.id)}
         renderRightActions={(_progress, _translation, swipeable) => (
+          <View style={styles.shoppingSwipeActions} testID="shopping-swipe-actions">
           <GesturePressable
             onPress={() => {
+              if (Date.now() >= suppressRowActionsUntil.current) startEditing(item.id, item.text);
+            }}
+            disabled={gesturesDisabled}
+            style={({ pressed }) => [styles.shoppingSwipeAction, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel={t('edit')}
+          >
+            <View style={[styles.shoppingSwipeActionCircle, styles.shoppingSwipeEditCircle]}>
+              <Ionicons name="pencil-outline" size={21} color={colors.text} />
+            </View>
+            <Text style={styles.shoppingSwipeActionText}>{t('edit')}</Text>
+          </GesturePressable>
+          <GesturePressable
+            disabled={gesturesDisabled}
+            onPress={() => {
               // Keep the release that confirmed deletion from landing on the
-              // edit button of the row that immediately moves into its place.
+              // actions of the row that immediately moves into its place.
               suppressRowActionsUntil.current = Date.now() + 500;
               cancelEditing();
               swipeable.close();
               requestAnimationFrame(() => removeItem(item.id));
             }}
-            style={({ pressed }) => [styles.shoppingSwipeDelete, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.shoppingSwipeAction, pressed && styles.pressed]}
             accessibilityRole="button"
             accessibilityLabel={t('delete')}
           >
-            <View style={styles.shoppingSwipeDeleteCircle}>
+            <View style={[styles.shoppingSwipeActionCircle, styles.shoppingSwipeDeleteCircle]}>
               <Ionicons name="trash-outline" size={23} color="#FFFFFF" />
             </View>
-            <Text style={styles.shoppingSwipeDeleteText}>{t('delete')}</Text>
+            <Text style={styles.shoppingSwipeActionText}>{t('delete')}</Text>
           </GesturePressable>
+          </View>
         )}
       >
         <View style={styles.shoppingRow} testID="shopping-row">
@@ -172,16 +191,6 @@ export default function ShoppingScreen() {
                 <Text style={[styles.shoppingText, item.checked && styles.shoppingTextChecked]}>
                   {item.text}
                 </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => startEditing(item.id, item.text)}
-                disabled={interactionsDisabled}
-                hitSlop={6}
-                style={({ pressed }) => [styles.shoppingRowAction, pressed && styles.pressed]}
-                accessibilityRole="button"
-                accessibilityLabel={t('edit')}
-              >
-                <Ionicons name="pencil-outline" size={19} color={colors.muted} />
               </Pressable>
             </>
           )}

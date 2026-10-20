@@ -1,4 +1,4 @@
-import { test as base, expect, type Page } from '@playwright/test';
+import { test as base, expect, type Locator, type Page } from '@playwright/test';
 import type { Recipe } from '../src/constants/recipes';
 import type { ShoppingItem } from '../src/utils/shopping';
 
@@ -57,6 +57,22 @@ export async function addItem(page: Page, text: string) {
 
 export function rows(page: Page) {
   return page.getByTestId('shopping-row');
+}
+
+export async function revealShoppingActions(page: Page, row: Locator) {
+  const target = row.getByTestId('shopping-drag');
+  await target.scrollIntoViewIfNeeded();
+  const box = await target.boundingBox();
+  if (!box) throw new Error('Shopping row has no bounding box');
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (let step = 1; step <= 12; step++) {
+    await page.mouse.move(x - 160 * step / 12, y);
+    await page.waitForTimeout(16);
+  }
+  await page.mouse.up();
 }
 
 export async function expectOrder(page: Page, names: string[]) {
