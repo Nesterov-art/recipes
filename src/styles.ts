@@ -384,7 +384,7 @@ function createStyles(COLORS: AppColors, fontScale: number) {
     justifyContent: 'center',
   },
   shoppingDragArea: { flex: 1, alignSelf: 'stretch', justifyContent: 'center', paddingVertical: 15 },
-  shoppingText: { flex: 1, fontSize: fs(17), color: COLORS.text },
+  shoppingText: { fontSize: fs(17), color: COLORS.text },
   shoppingTextChecked: { color: COLORS.muted, textDecorationLine: 'line-through' },
   shoppingEditRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
   shoppingEditInput: {

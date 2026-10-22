@@ -1,10 +1,7 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createContext,
-  useCallback,
   type PropsWithChildren,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -13,17 +10,18 @@ import { Alert } from 'react-native';
 
 import {
   CATEGORIES,
-  META_STORAGE_KEY,
   QUICK_TIME,
   type Recipe,
   type CookingRating,
   type RecipeFilter,
   type RecipeMeta,
   type RecipeMetaById,
-  STORAGE_KEY,
 } from '@/constants/recipes';
-import { emptyRecipeMeta, isRecipe, isRecipeMetaById } from '@/utils/recipes';
-import { BOOK_STORAGE_KEY, mergeRecipeBackup, type RecipeBackup } from '@/utils/recipe-backup';
+import { emptyRecipeMeta } from '@/utils/recipes';
+import { mergeRecipeBackup, type RecipeBackup } from '@/utils/recipe-backup';
+import { bookConfig } from '@/utils/storage-models';
+import { useSafeStore } from '@/hooks/use-safe-store';
+import { StorageGuard } from '@/components/storage-guard';
 import { pickSmartRandom } from '@/utils/smart-random';
 import { useSettings } from '@/context/settings-context';
 import { useToast } from '@/context/toast-context';
@@ -43,11 +41,11 @@ type RecipesContextValue = {
   recipeMeta: RecipeMetaById;
   getRecipeMeta: (id: string) => RecipeMeta;
   toggleFavorite: (id: string) => void;
-  recordCooking: (id: string, details?: { rating?: CookingRating; note?: string }) => void;
-  importRecipes: (backup: RecipeBackup) => Promise<ReturnType<typeof mergeRecipeBackup>>;
-  addRecipe: (recipe: Recipe) => void;
-  updateRecipe: (recipe: Recipe) => void;
-  deleteRecipe: (id: string) => void;
+  recordCooking: (id: string, details?: { rating?: CookingRating; note?: string }, onSaved?: () => void) => Promise<boolean>;
+  importRecipes: (backup: RecipeBackup, onSaved?: (result: ReturnType<typeof mergeRecipeBackup>) => void) => Promise<ReturnType<typeof mergeRecipeBackup>>;
+  addRecipe: (recipe: Recipe, onSaved?: () => void) => Promise<boolean>;
+  updateRecipe: (recipe: Recipe, onSaved?: () => void) => Promise<boolean>;
+  deleteRecipe: (id: string, onSaved?: () => void) => Promise<boolean>;
   pickRandom: () => Recipe | null;
 };
 
@@ -60,73 +58,14 @@ export function useRecipes() {
 }
 
 export function RecipesProvider({ children }: PropsWithChildren) {
-  const { language, t } = useSettings();
+  const { language, t, colors } = useSettings();
   const { showToast } = useToast();
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [recipeMeta, setRecipeMeta] = useState<RecipeMetaById>({});
-  const [loaded, setLoaded] = useState(false);
+  const storage = useSafeStore(bookConfig);
+  const { store, loaded, data: { recipes, recipeMeta } } = storage;
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<RecipeFilter>('Все');
   const [sort, setSort] = useState<RecipeSort>('recent');
   const lastRandomId = useRef<string | null>(null);
-
-  const saveQueue = useRef<Promise<void>>(Promise.resolve());
-  const persistBook = useCallback((nextRecipes: Recipe[], nextMeta: RecipeMetaById) => {
-    const write = saveQueue.current.catch(() => {}).then(async () => {
-      // One authoritative write commits recipes and history together. Legacy keys
-      // remain mirrors for backwards compatibility, never the source after migration.
-      await AsyncStorage.setItem(BOOK_STORAGE_KEY, JSON.stringify({ recipes: nextRecipes, recipeMeta: nextMeta }));
-      await AsyncStorage.multiSet([
-        [STORAGE_KEY, JSON.stringify(nextRecipes)],
-        [META_STORAGE_KEY, JSON.stringify(nextMeta)],
-      ]).catch(error => console.warn('Unable to update legacy recipe mirrors', error));
-    });
-    saveQueue.current = write;
-    return write;
-  }, []);
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const [recipesJson, metaJson, bookJson] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEY),
-          AsyncStorage.getItem(META_STORAGE_KEY),
-          AsyncStorage.getItem(BOOK_STORAGE_KEY),
-        ]);
-        if (bookJson) {
-          try {
-            const book: unknown = JSON.parse(bookJson);
-            if (book && typeof book === 'object' && 'recipes' in book && 'recipeMeta' in book
-              && Array.isArray(book.recipes) && book.recipes.every(isRecipe) && isRecipeMetaById(book.recipeMeta)) {
-              setRecipes(book.recipes);
-              setRecipeMeta(book.recipeMeta);
-              return;
-            }
-          } catch (error) {
-            console.warn('Unable to read recipe book; trying legacy data', error);
-          }
-        }
-        if (recipesJson) {
-          const parsed: unknown = JSON.parse(recipesJson);
-          if (Array.isArray(parsed) && parsed.every(isRecipe)) setRecipes(parsed);
-        }
-        if (metaJson) {
-          const parsed: unknown = JSON.parse(metaJson);
-          if (isRecipeMetaById(parsed)) setRecipeMeta(parsed);
-        }
-      } catch (error) {
-        console.warn('Ошибка загрузки рецептов', error);
-      } finally {
-        setLoaded(true);
-      }
-    }
-    void load();
-  }, []);
-
-  useEffect(() => {
-    if (!loaded) return;
-    void persistBook(recipes, recipeMeta).catch(error => console.warn('Unable to save recipe book', error));
-  }, [loaded, persistBook, recipeMeta, recipes]);
 
   const visible = useMemo(() => {
     const terms = query.toLowerCase().split(/[,\s]+/).filter(Boolean);
@@ -159,16 +98,19 @@ export function RecipesProvider({ children }: PropsWithChildren) {
       visible,
       recipeMeta,
       getRecipeMeta: (id) => recipeMeta[id] ?? emptyRecipeMeta(),
-      toggleFavorite: (id) => setRecipeMeta((current) => {
-        const meta = current[id] ?? emptyRecipeMeta();
-        return { ...current, [id]: { ...meta, favorite: !meta.favorite } };
-      }),
-      recordCooking: (id, details = {}) => {
-        setRecipeMeta((current) => {
-          const meta = current[id] ?? emptyRecipeMeta();
-          const note = details.note?.trim();
-          return {
-            ...current,
+      toggleFavorite: (id) => {
+        void store.update(current => {
+          const meta = current.recipeMeta[id] ?? emptyRecipeMeta();
+          return { ...current, recipeMeta: { ...current.recipeMeta, [id]: { ...meta, favorite: !meta.favorite } } };
+        });
+      },
+      recordCooking: (id, details = {}, onSaved) => store.update(current => {
+        const meta = current.recipeMeta[id] ?? emptyRecipeMeta();
+        const note = details.note?.trim();
+        return {
+          ...current,
+          recipeMeta: {
+            ...current.recipeMeta,
             [id]: {
               ...meta,
               cookings: [
@@ -181,35 +123,29 @@ export function RecipesProvider({ children }: PropsWithChildren) {
                 ...meta.cookings,
               ],
             },
-          };
-        });
-        showToast(t('cookingSaved'));
-      },
-      importRecipes: async (backup) => {
-        const result = mergeRecipeBackup(recipes, recipeMeta, backup);
-        // Failed writes leave the visible collection untouched and can be retried.
-        await persistBook(result.recipes, result.recipeMeta);
-        setRecipes(result.recipes);
-        setRecipeMeta(result.recipeMeta);
+          },
+        };
+      }, () => { showToast(t('cookingSaved')); onSaved?.(); }),
+      importRecipes: async (backup, onSaved) => {
+        let result: ReturnType<typeof mergeRecipeBackup> | undefined;
+        const saved = await store.update(current => {
+          result = mergeRecipeBackup(current.recipes, current.recipeMeta, backup);
+          return { ...current, recipes: result.recipes, recipeMeta: result.recipeMeta };
+        }, () => { if (result) onSaved?.(result); });
+        if (!saved || !result) throw new Error('Recipe import was not committed');
         return result;
       },
-      addRecipe: (recipe) => {
-        setRecipes((current) => [recipe, ...current]);
-        showToast(t('recipeCreated'));
-      },
-      updateRecipe: (updated) => {
-        setRecipes((current) => current.map((recipe) => (recipe.id === updated.id ? updated : recipe)));
-        showToast(t('recipeUpdated'));
-      },
-      deleteRecipe: (id) => {
-        setRecipes((current) => current.filter((recipe) => recipe.id !== id));
-        setRecipeMeta((current) => {
-          const next = { ...current };
-          delete next[id];
-          return next;
-        });
-        showToast(t('recipeDeleted'));
-      },
+      addRecipe: (recipe, onSaved) => store.update(current => ({
+        ...current, recipes: [recipe, ...current.recipes.filter(item => item.id !== recipe.id)],
+      }), () => { showToast(t('recipeCreated')); onSaved?.(); }),
+      updateRecipe: (updated, onSaved) => store.update(current => ({
+        ...current, recipes: current.recipes.map(recipe => recipe.id === updated.id ? updated : recipe),
+      }), () => { showToast(t('recipeUpdated')); onSaved?.(); }),
+      deleteRecipe: (id, onSaved) => store.update(current => {
+        const next = { ...current.recipeMeta };
+        delete next[id];
+        return { ...current, recipes: current.recipes.filter(recipe => recipe.id !== id), recipeMeta: next };
+      }, () => { showToast(t('recipeDeleted')); onSaved?.(); }),
       pickRandom: () => {
         if (visible.length === 0) {
           Alert.alert(
@@ -228,8 +164,8 @@ export function RecipesProvider({ children }: PropsWithChildren) {
         return recipe;
       },
     }),
-    [filter, loaded, persistBook, query, recipeMeta, recipes, showToast, sort, t, visible],
+    [filter, loaded, store, query, recipeMeta, recipes, showToast, sort, t, visible],
   );
 
-  return <RecipesContext.Provider value={value}>{children}</RecipesContext.Provider>;
+  return <RecipesContext.Provider value={value}><StorageGuard {...storage} t={t} colors={colors}>{children}</StorageGuard></RecipesContext.Provider>;
 }

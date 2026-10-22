@@ -66,9 +66,11 @@ test.describe('new installation', () => {
     });
     await page.goto('/');
     await page.getByRole('button', { name: 'Пропустить', exact: true }).click();
-    await expect(page.getByRole('alert')).toHaveText('Не удалось сохранить. Попробуй ещё раз.');
-    await expect(heading(page, book)).toBeVisible();
-    await page.getByRole('button', { name: 'Пропустить', exact: true }).click();
+    await expect(page.getByRole('alert')).toHaveText('Не удалось сохранить изменения');
+    // The introduction remains mounted behind the storage error dialog.
+    await expect(page.getByTestId('onboarding')).toHaveCount(1);
+    expect(await page.evaluate(() => localStorage.getItem('app-onboarding-v1'))).toBe('pending');
+    await page.getByRole('button', { name: 'Повторить сохранение', exact: true }).click();
     await expect(page.getByText(/Пока нет рецептов/)).toBeVisible();
   });
 

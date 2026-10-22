@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -27,6 +27,7 @@ export default function ShoppingSelectScreen() {
   const [selected, setSelected] = useState<Set<number>>(
     () => new Set(recipe?.ingredients.map((_, index) => index) ?? []),
   );
+  const saving = useRef(false);
 
   if (!recipe) return <View style={styles.screen} />;
 
@@ -39,11 +40,15 @@ export default function ShoppingSelectScreen() {
     });
   }
 
-  function handleAdd() {
+  async function handleAdd() {
+    if (saving.current) return;
+    saving.current = true;
     const ingredients = recipe!.ingredients.filter((_, index) => selected.has(index));
-    const count = addIngredients(ingredients);
-    showToast(count > 0 ? t('ingredientsAdded', { count }) : t('ingredientsAlreadyAdded'));
-    router.back();
+    await addIngredients(ingredients, count => {
+      showToast(count > 0 ? t('ingredientsAdded', { count }) : t('ingredientsAlreadyAdded'));
+      router.back();
+    });
+    saving.current = false;
   }
 
   const selectedCount = selected.size;

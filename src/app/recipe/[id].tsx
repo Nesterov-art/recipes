@@ -45,9 +45,8 @@ export default function RecipeScreen() {
       {
         text: t('delete'),
         style: 'destructive',
-        onPress: () => {
-          deleteRecipe(selectedId);
-          router.back();
+        onPress: async () => {
+          await deleteRecipe(selectedId, () => router.back());
         },
       },
     ]);

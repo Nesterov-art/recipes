@@ -51,6 +51,20 @@ test('shopping edit keeps a non-zooming input size on mobile web', async ({ page
   await expectOrder(page, shopping.map(item => item.text));
 });
 
+test('cancelled swipe leaves data intact and checkbox still saves', async ({ page }) => {
+  await page.goto('/shopping');
+  await expectOrder(page, shopping.map(item => item.text));
+  await pointerDrag(page, rows(page).first().getByTestId('shopping-drag'), -20, 0);
+  await expectOrder(page, shopping.map(item => item.text));
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('shopping-list-v1')!))).toEqual(shopping);
+  const checkbox = page.getByRole('checkbox', { name: 'молоко — 1 л', exact: true });
+  await checkbox.click();
+  await expect(checkbox).toBeChecked();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('shopping-list-v1')!)[0].checked)).toBe(true);
+  await page.reload();
+  await expect(checkbox).toBeChecked();
+});
+
 test('pointer long press reorders the actual list and saved order', async ({ page }) => {
   await page.goto('/shopping');
   await expectOrder(page, shopping.map(item => item.text));
@@ -92,7 +106,7 @@ test('Chromium touch input: swipe opens delete and touch removes the item', asyn
   await session.detach();
 });
 
-test('Chromium touch input: long press reorder is a known failure', async ({ page, context, browserName, isMobile }) => {
+test('Chromium touch input: long press reorders and persists without cancelling the pointer', async ({ page, context, browserName, isMobile }) => {
   test.skip(browserName !== 'chromium' || !isMobile, 'Continuous trusted touch input uses Chromium CDP.');
   await page.goto('/shopping');
   await expectOrder(page, shopping.map(item => item.text));
@@ -107,7 +121,6 @@ test('Chromium touch input: long press reorder is a known failure', async ({ pag
     await page.waitForTimeout(16);
   }
   await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  test.fail(true, 'Known RN Web trusted-touch long-press failure; pointer reorder works. Needs a separate app fix and iPhone verification.');
   await expectOrder(page, ['хлеб', 'сыр — 50 г', 'молоко — 1 л']);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('shopping-list-v1') ?? '[]').map((item: { id: string }) => item.id))).toEqual(['e2e-bread', 'e2e-cheese', 'e2e-milk']);
   await page.reload();

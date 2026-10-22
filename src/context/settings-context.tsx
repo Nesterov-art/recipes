@@ -1,8 +1,10 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, type PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, type PropsWithChildren, useContext, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 
 import { useSystemFontScale } from '@/hooks/use-system-font-scale';
+import { useSafeStore } from '@/hooks/use-safe-store';
+import { settingsConfig } from '@/utils/storage-models';
+import { StorageGuard } from '@/components/storage-guard';
 
 import { createTranslator, type Language, type Translate } from '@/constants/i18n';
 import {
@@ -11,8 +13,6 @@ import {
   type ResolvedThemeMode,
   type ThemeMode,
 } from '@/constants/theme';
-
-const SETTINGS_KEY = 'app-settings-v1';
 
 export type ShoppingCompletedBehavior = 'keep' | 'moveDown';
 
@@ -40,64 +40,21 @@ export function useSettings() {
 
 export function SettingsProvider({ children }: PropsWithChildren) {
   const systemColorScheme = useColorScheme();
-  const [loaded, setLoaded] = useState(false);
-  const [theme, setTheme] = useState<ThemeMode>('system');
-  const [language, setLanguage] = useState<Language>('ru');
+  const storage = useSafeStore(() => settingsConfig);
+  const { store, loaded, data: { theme, language, shoppingCompletedBehavior } } = storage;
   const fontScale = useSystemFontScale();
-  const [shoppingCompletedBehavior, setShoppingCompletedBehavior] =
-    useState<ShoppingCompletedBehavior>('moveDown');
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const json = await AsyncStorage.getItem(SETTINGS_KEY);
-        if (json) {
-          const value = JSON.parse(json) as {
-            theme?: unknown;
-            language?: unknown;
-            shoppingCompletedBehavior?: unknown;
-          };
-          if (value.theme === 'system' || value.theme === 'light' || value.theme === 'dark') {
-            setTheme(value.theme);
-          }
-          if (value.language === 'ru' || value.language === 'en') setLanguage(value.language);
-          if (
-            value.shoppingCompletedBehavior === 'keep'
-            || value.shoppingCompletedBehavior === 'moveDown'
-          ) {
-            setShoppingCompletedBehavior(value.shoppingCompletedBehavior);
-          }
-        }
-      } catch (error) {
-        console.warn('Unable to load settings', error);
-      } finally {
-        setLoaded(true);
-      }
-    }
-    void load();
-  }, []);
-
-  useEffect(() => {
-    if (!loaded) return;
-    AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({
-      theme,
-      language,
-      shoppingCompletedBehavior,
-    })).catch((error) => {
-      console.warn('Unable to save settings', error);
-    });
-  }, [language, loaded, shoppingCompletedBehavior, theme]);
 
   const resolvedTheme: ResolvedThemeMode = theme === 'system'
     ? systemColorScheme === 'light' ? 'light' : 'dark'
     : theme;
 
   const value = useMemo<SettingsContextValue>(() => ({
-    loaded, theme, setTheme, resolvedTheme, language, setLanguage,
-    shoppingCompletedBehavior, setShoppingCompletedBehavior,
+    loaded, theme, setTheme: theme => { void store.update(current => ({ ...current, theme })); },
+    resolvedTheme, language, setLanguage: language => { void store.update(current => ({ ...current, language })); },
+    shoppingCompletedBehavior, setShoppingCompletedBehavior: shoppingCompletedBehavior => { void store.update(current => ({ ...current, shoppingCompletedBehavior })); },
     fontScale,
     colors: THEMES[resolvedTheme], t: createTranslator(language),
-  }), [fontScale, language, loaded, resolvedTheme, shoppingCompletedBehavior, theme]);
+  }), [fontScale, language, loaded, resolvedTheme, shoppingCompletedBehavior, theme, store]);
 
-  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
+  return <SettingsContext.Provider value={value}><StorageGuard {...storage} colors={value.colors} t={value.t}>{children}</StorageGuard></SettingsContext.Provider>;
 }

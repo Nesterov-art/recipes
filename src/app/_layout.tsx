@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Onboarding } from '@/components/onboarding';
+import { ProfileStorageGate } from '@/components/profile-storage-gate';
 import { OnboardingProvider, useOnboarding } from '@/context/onboarding-context';
 import { AppToast } from '@/components/app-toast';
 import { RecipesProvider, useRecipes } from '@/context/recipes-context';
@@ -65,7 +66,11 @@ function AppContent() {
     document.documentElement.style.backgroundColor = colors.bg;
     document.body.style.backgroundColor = colors.bg;
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', colors.bg);
-  }, [colors.bg]);
+    document.getElementById('app-favicon')?.setAttribute('href', `/favicon-cookbook-${resolvedTheme}.png`);
+    // Safari captures this icon when adding to Home Screen; installed icons
+    // are managed by iOS and cannot be changed by switching the app theme.
+    document.querySelector('link[rel="apple-touch-icon"]')?.setAttribute('href', `/apple-touch-icon-cookbook-${resolvedTheme}.png`);
+  }, [colors.bg, resolvedTheme]);
 
   return (
     <SafeAreaProvider style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -84,12 +89,12 @@ function AppContent() {
 
 export default function RootLayout() {
   return (
-    <OnboardingProvider>
+    <ProfileStorageGate><OnboardingProvider>
       <SettingsProvider>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <AppContent />
         </GestureHandlerRootView>
       </SettingsProvider>
-    </OnboardingProvider>
+    </OnboardingProvider></ProfileStorageGate>
   );
 }

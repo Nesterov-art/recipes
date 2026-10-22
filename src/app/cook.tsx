@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,6 +22,7 @@ export default function CookScreen() {
   const recipe = recipes.find((item) => item.id === first(params.id));
   const [rating, setRating] = useState<CookingRating | undefined>();
   const [note, setNote] = useState('');
+  const saving = useRef(false);
 
   const ratings: { value: CookingRating; emoji: string; label: string }[] = [
     { value: 'disliked', emoji: '😕', label: t('ratingDisliked') },
@@ -31,9 +32,11 @@ export default function CookScreen() {
 
   if (!recipe) return <View style={styles.screen} />;
 
-  function handleSave() {
-    recordCooking(recipe!.id, { rating, note });
-    router.back();
+  async function handleSave() {
+    if (saving.current) return;
+    saving.current = true;
+    await recordCooking(recipe!.id, { rating, note }, () => router.back());
+    saving.current = false;
   }
 
   return (

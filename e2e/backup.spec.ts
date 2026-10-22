@@ -85,9 +85,9 @@ test('ID collision keeps both recipes and a failed save can be retried', async (
   await select(page, backup([{ ...incoming, id: 'e2e-omelet' }]));
   await expect(page.getByTestId('recipe-import-preview')).toContainText('Сохраним оба варианта.');
   await page.getByRole('button', { name: 'Добавить в мою книгу', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('Данные в книге не изменены');
+  await expect(page.getByRole('alert')).toContainText('Не удалось сохранить изменения');
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('recipe-book-v1')!).recipes)).toEqual(recipes);
-  await page.getByRole('button', { name: 'Добавить в мою книгу', exact: true }).click();
+  await page.getByRole('button', { name: 'Повторить сохранение', exact: true }).click();
   await expect(page.getByTestId('recipe-import-preview')).toHaveCount(0);
   await page.goto('/');
   for (const title of ['Омлет с сыром', 'Салат из файла']) await expect(page.getByRole('button', { name: `Открыть рецепт ${title}`, exact: true })).toBeVisible();
@@ -141,6 +141,7 @@ test('canonical snapshot wins over stale mirrors; damaged snapshot falls back to
   // A different page without the initialization script checks recovery from legacy data.
   const fresh = await page.context().newPage();
   await fresh.goto('/');
+  await fresh.getByRole('button', { name: 'Восстановить из предыдущей копии (оригинал сохранится)', exact: true }).click();
   await expect(fresh.getByRole('button', { name: 'Открыть рецепт Омлет с сыром', exact: true })).toBeVisible();
 });
 

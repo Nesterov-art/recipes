@@ -1,5 +1,6 @@
 import type { Recipe, RecipeMeta, RecipeMetaById } from '../constants/recipes.ts';
 import { isRecipe, isRecipeMetaById } from './recipes.ts';
+import { utf8Length } from './utf8.ts';
 
 export const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
 export const BOOK_STORAGE_KEY = 'recipe-book-v1';
@@ -15,7 +16,7 @@ const safeId = (id: string) => id.trim().length > 0 && !['__proto__', 'construct
 const plain = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
 export function parseRecipeBackup(text: string): RecipeBackup {
-  if (new TextEncoder().encode(text).length > MAX_BACKUP_BYTES) throw new BackupError('size');
+  if (utf8Length(text) > MAX_BACKUP_BYTES) throw new BackupError('size');
   let value: unknown;
   try { value = JSON.parse(text.replace(/^\uFEFF/, '')); } catch { throw new BackupError('invalid'); }
   if (!plain(value) || value.format !== 'recipes-backup') throw new BackupError('invalid');
@@ -59,18 +60,19 @@ export function serializeRecipeBackup(recipes: Recipe[], recipeMeta: RecipeMetaB
 const signature = ({ title, category, time, ingredients, steps }: Recipe) => JSON.stringify([title, category, time, ingredients, steps]);
 
 function mergeMeta(local: RecipeMeta | undefined, incoming: RecipeMeta | undefined): RecipeMeta {
-  if (!local) return incoming ?? { favorite: false, cookings: [] };
-  if (!incoming) return local;
-  const cookings = [...local.cookings];
-  for (const record of incoming.cookings) {
+  const cookings = [...(local?.cookings ?? [])];
+  for (const record of incoming?.cookings ?? []) {
     // Re-importing a backup must not duplicate histories, including ID collisions.
-    if (cookings.some(item => item.cookedAt === record.cookedAt && item.rating === record.rating && item.note === record.note)) continue;
+    if (cookings.some(item => (item.id === record.id || item.id.startsWith(`${record.id}-import-`)
+      && /^\d+$/.test(item.id.slice(`${record.id}-import-`.length)))
+      && item.cookedAt === record.cookedAt && item.rating === record.rating && item.note === record.note)) continue;
     let id = record.id;
     let suffix = 1;
     while (cookings.some(item => item.id === id)) id = `${record.id}-import-${suffix++}`;
     cookings.push({ ...record, id });
   }
-  return { favorite: local.favorite || incoming.favorite, cookings };
+  cookings.sort((a, b) => Date.parse(b.cookedAt) - Date.parse(a.cookedAt) || a.id.localeCompare(b.id));
+  return { favorite: !!(local?.favorite || incoming?.favorite), cookings };
 }
 
 export function mergeRecipeBackup(local: Recipe[], metadata: RecipeMetaById, backup: RecipeBackup) {

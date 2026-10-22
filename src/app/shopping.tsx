@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { Pressable as GesturePressable } from 'react-native-gesture-handler';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
 import ReanimatedSwipeable, {
@@ -31,13 +31,35 @@ export default function ShoppingScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const touchDragActive = useRef(false);
   const swipeableRefs = useRef(new Map<string, SwipeableMethods>());
   const suppressRowActionsUntil = useRef(0);
+  const saving = useRef(false);
   const hasCompleted = items.some((item) => item.checked);
   const displayedItems = useMemo(
     () => orderShoppingItems(items, shoppingCompletedBehavior === 'moveDown'),
     [items, shoppingCompletedBehavior],
   );
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    // Safari/Chromium otherwise start native scrolling and send pointercancel
+    // after the long press has already activated DraggableFlatList. A dynamic
+    // touch-action change is too late for the current touch sequence. Cancel
+    // only active drag moves, leaving ordinary touch scrolling untouched.
+    const preventDragScroll = (event: TouchEvent) => {
+      if (touchDragActive.current && event.cancelable) event.preventDefault();
+    };
+    const release = () => { touchDragActive.current = false; };
+    window.addEventListener('touchmove', preventDragScroll, { passive: false });
+    window.addEventListener('touchend', release);
+    window.addEventListener('touchcancel', release);
+    return () => {
+      window.removeEventListener('touchmove', preventDragScroll);
+      window.removeEventListener('touchend', release);
+      window.removeEventListener('touchcancel', release);
+    };
+  }, []);
 
   function closeSwipeables(exceptId?: string) {
     swipeableRefs.current.forEach((swipeable, id) => {
@@ -45,9 +67,12 @@ export default function ShoppingScreen() {
     });
   }
 
-  function handleAdd() {
-    if (draggingId) return;
-    if (addItem(value)) setValue('');
+  async function handleAdd() {
+    if (draggingId || saving.current) return;
+    saving.current = true;
+    const submitted = value;
+    await addItem(submitted, () => setValue(current => current === submitted ? '' : current));
+    saving.current = false;
   }
 
   function startEditing(id: string, text: string) {
@@ -64,9 +89,11 @@ export default function ShoppingScreen() {
     setEditingValue('');
   }
 
-  function saveEditing() {
-    if (!editingId || !updateItem(editingId, editingValue)) return;
-    cancelEditing();
+  async function saveEditing() {
+    if (!editingId || saving.current) return;
+    saving.current = true;
+    await updateItem(editingId, editingValue, cancelEditing);
+    saving.current = false;
   }
 
   function renderItem({ item, drag, isActive }: RenderItemParams<ShoppingItem>) {
@@ -180,9 +207,9 @@ export default function ShoppingScreen() {
               </Pressable>
               <Pressable
                 testID="shopping-drag"
-                onLongPress={drag}
+                onLongPress={() => { if (!draggingId) drag(); }}
                 delayLongPress={350}
-                disabled={isActive || gesturesDisabled}
+                disabled={editingId !== null || (interactionsDisabled && !isActive)}
                 style={({ pressed }) => [styles.shoppingDragArea, pressed && styles.pressed]}
                 accessibilityRole="button"
                 accessibilityLabel={item.text}
@@ -257,10 +284,12 @@ export default function ShoppingScreen() {
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         onDragBegin={(index) => {
+          touchDragActive.current = true;
           closeSwipeables();
           setDraggingId(displayedItems[index]?.id ?? null);
         }}
         onDragEnd={({ data }) => {
+          touchDragActive.current = false;
           reorderItems(data.map((item) => item.id));
           setDraggingId(null);
         }}

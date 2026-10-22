@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -27,8 +27,11 @@ export default function FormScreen() {
   const [ingredients, setIngredients] = useState(initial?.ingredients.join('\n') ?? '');
   const [steps, setSteps] = useState(initial?.steps.join('\n') ?? '');
   const [category, setCategory] = useState<string | null>(initial?.category ?? null);
+  const [draftId] = useState(() => initial?.id ?? `${Date.now()}-${Math.random()}`);
+  const saving = useRef(false);
 
-  function handleSave() {
+  async function handleSave() {
+    if (saving.current) return;
     const normalizedTitle = title.trim();
     const normalizedTime = Number(time);
     if (!normalizedTitle) {
@@ -41,16 +44,16 @@ export default function FormScreen() {
     }
 
     const recipe: Recipe = {
-      id: initial?.id ?? `${Date.now()}`,
+      id: draftId,
       title: normalizedTitle,
       category,
       time: normalizedTime,
       ingredients: toLines(ingredients),
       steps: toLines(steps),
     };
-    if (initial) updateRecipe(recipe);
-    else addRecipe(recipe);
-    router.back();
+    saving.current = true;
+    await (initial ? updateRecipe(recipe, () => router.back()) : addRecipe(recipe, () => router.back()));
+    saving.current = false;
   }
 
   return (
