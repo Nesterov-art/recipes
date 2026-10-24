@@ -11,6 +11,8 @@ type ParsedShoppingEntry = {
   name: string;
   quantity?: number;
   unit?: string;
+  // Transient parsing detail: persisted in the existing display text, not a new field.
+  qualifier?: string;
 };
 
 type MergeResult = {
@@ -79,6 +81,20 @@ function cleanSpaces(value: string) {
   return value.normalize('NFKC').trim().replace(/\s+/g, ' ');
 }
 
+const TEXT_QUALIFIERS = new Set(['по вкусу', 'для жарки', 'to taste', 'for frying']);
+
+function splitQualifier(value: string): { text: string; qualifier?: string } {
+  const text = cleanSpaces(value);
+  const match = text.match(/^(.*?)\s+(?:—|–|-)\s+(.+)$/u);
+  const parenthetical = text.match(/^(.*?)\s+\(([^()]*)\)$/u);
+  for (const candidate of [match, parenthetical]) {
+    if (candidate?.[1] && TEXT_QUALIFIERS.has(candidate[2].toLocaleLowerCase('ru-RU'))) {
+      return { text: candidate[1], qualifier: candidate[2] };
+    }
+  }
+  return { text };
+}
+
 function normalizeUnitKey(value: string) {
   return cleanSpaces(value).toLocaleLowerCase().replace(/\.$/, '');
 }
@@ -109,19 +125,20 @@ function parseAmount(value: string): Omit<ParsedShoppingEntry, 'name'> | null {
 }
 
 export function normalizeProductName(value: string) {
-  const normalized = cleanSpaces(value).toLocaleLowerCase('ru-RU').replace(/ё/g, 'е');
+  const normalized = splitQualifier(value).text.toLocaleLowerCase('ru-RU').replace(/ё/g, 'е');
   return NAME_ALIASES[normalized] ?? normalized;
 }
 
-export function parseShoppingEntry(value: string): ParsedShoppingEntry | null {
-  const text = cleanSpaces(value);
+export function parseShoppingEntry(value: string, recognizeQualifiers = true): ParsedShoppingEntry | null {
+  const { text, qualifier } = recognizeQualifiers ? splitQualifier(value) : { text: cleanSpaces(value), qualifier: undefined };
+  const explanation = qualifier ? { qualifier } : {};
   if (!text) return null;
 
   const separated = text.match(/^(.*?)\s+(?:—|–|-)\s+(.+)$/u);
   if (separated) {
     const name = cleanSpaces(separated[1]);
     const amount = parseAmount(separated[2]);
-    if (name && amount) return { name, ...amount };
+    if (name && amount) return { name, ...amount, ...explanation };
   }
 
   const trailingAmount = text.match(/^(.*?)\s+(\d+(?:[.,]\d+)?)(?:\s+([^\d]+))?$/u);
@@ -130,11 +147,11 @@ export function parseShoppingEntry(value: string): ParsedShoppingEntry | null {
     const quantity = parseQuantity(trailingAmount[2]);
     const unit = canonicalizeUnit(trailingAmount[3]);
     if (name && quantity !== undefined) {
-      return { name, quantity, ...(unit ? { unit } : {}) };
+      return { name, quantity, ...(unit ? { unit } : {}), ...explanation };
     }
   }
 
-  return { name: text };
+  return { name: text, ...explanation };
 }
 
 function rounded(value: number) {
@@ -145,9 +162,9 @@ function formatQuantity(value: number) {
   return String(rounded(value)).replace('.', ',');
 }
 
-function formatShoppingItem(item: Pick<ShoppingItem, 'name' | 'quantity' | 'unit'>) {
-  if (item.quantity === undefined) return item.name;
-  return `${item.name} — ${formatQuantity(item.quantity)}${item.unit ? ` ${item.unit}` : ''}`;
+function formatShoppingItem(item: Pick<ShoppingItem, 'name' | 'quantity' | 'unit'>, qualifier?: string) {
+  if (item.quantity === undefined) return qualifier ? `${item.name} — ${qualifier}` : item.name;
+  return `${item.name} — ${formatQuantity(item.quantity)}${item.unit ? ` ${item.unit}` : ''}${qualifier ? ` (${qualifier})` : ''}`;
 }
 
 function makeShoppingItem(
@@ -163,7 +180,7 @@ function makeShoppingItem(
     text: '',
     checked,
   };
-  item.text = formatShoppingItem(item);
+  item.text = formatShoppingItem(item, parsed.qualifier);
   return item;
 }
 
@@ -194,9 +211,16 @@ function quantityInTargetUnit(quantity: number, sourceUnit: string | undefined, 
 }
 
 function mergeIntoItem(existing: ShoppingItem, incoming: ParsedShoppingEntry): ShoppingItem | null {
+  const qualifier = parseShoppingEntry(existing.text)?.qualifier ?? incoming.qualifier;
+  function explain(item: ShoppingItem) {
+    if (!qualifier) return item;
+    const name = splitQualifier(item.name).text;
+    const text = formatShoppingItem({ ...item, name }, qualifier);
+    return text === item.text && name === item.name ? item : { ...item, name, text };
+  }
   if (existing.quantity === undefined) {
     if (incoming.quantity === undefined) {
-      return existing.checked ? { ...existing, checked: false } : existing;
+      return explain(existing.checked ? { ...existing, checked: false } : existing);
     }
     const updated = {
       ...existing,
@@ -204,18 +228,18 @@ function mergeIntoItem(existing: ShoppingItem, incoming: ParsedShoppingEntry): S
       ...(incoming.unit ? { unit: incoming.unit } : {}),
       checked: false,
     };
-    return { ...updated, text: formatShoppingItem(updated) };
+    return explain({ ...updated, text: formatShoppingItem(updated) });
   }
 
   if (incoming.quantity === undefined) {
-    return existing.checked ? { ...existing, checked: false } : existing;
+    return explain(existing.checked ? { ...existing, checked: false } : existing);
   }
 
   if (!areUnitsCompatible(existing.unit, incoming.unit)) return null;
   const converted = quantityInTargetUnit(incoming.quantity, incoming.unit, existing.unit);
   if (converted === undefined) return null;
   const updated = { ...existing, quantity: rounded(existing.quantity + converted), checked: false };
-  return { ...updated, text: formatShoppingItem(updated) };
+  return explain({ ...updated, text: formatShoppingItem(updated) });
 }
 
 function defaultIdFactory(index: number) {
@@ -287,8 +311,10 @@ export function migrateShoppingItems(value: unknown): ShoppingItem[] {
 
   return value.flatMap((entry, index) => {
     if (typeof entry === 'string') {
-      const migrated = createShoppingItem(entry, `legacy-${index}`);
-      return migrated ? [migrated] : [];
+      // Preserve the historical migration for saved text-only records. Matching
+      // understands qualifiers without silently rewriting old product names.
+      const parsed = parseShoppingEntry(entry, false);
+      return parsed ? [makeShoppingItem(parsed, `legacy-${index}`)] : [];
     }
     if (!entry || typeof entry !== 'object') return [];
     const item = entry as Record<string, unknown>;
@@ -302,12 +328,16 @@ export function migrateShoppingItems(value: unknown): ShoppingItem[] {
         ? item.quantity
         : undefined;
       const unit = typeof item.unit === 'string' ? canonicalizeUnit(item.unit) : undefined;
-      return [makeShoppingItem({ name, ...(quantity !== undefined ? { quantity } : {}), ...(unit ? { unit } : {}) }, id, checked)];
+      const displayed = typeof item.text === 'string' ? parseShoppingEntry(item.text) : null;
+      const qualifier = !splitQualifier(name).qualifier && displayed?.qualifier
+        && normalizeProductName(displayed.name) === normalizeProductName(name)
+        && displayed.quantity === quantity && displayed.unit === unit ? displayed.qualifier : undefined;
+      return [makeShoppingItem({ name, ...(quantity !== undefined ? { quantity } : {}), ...(unit ? { unit } : {}), ...(qualifier ? { qualifier } : {}) }, id, checked)];
     }
 
     if (typeof item.text === 'string') {
-      const migrated = createShoppingItem(item.text, id, checked);
-      return migrated ? [migrated] : [];
+      const parsed = parseShoppingEntry(item.text, false);
+      return parsed ? [makeShoppingItem(parsed, id, checked)] : [];
     }
 
     return [];

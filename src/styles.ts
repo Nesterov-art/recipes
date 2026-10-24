@@ -212,6 +212,7 @@ function createStyles(COLORS: AppColors, fontScale: number) {
     outlineColor: 'transparent',
   },
   fieldMultiline: { minHeight: 120, textAlignVertical: 'top' },
+  fieldError: { fontSize: fs(14), lineHeight: fs(20), color: COLORS.danger, marginTop: 6 },
   primaryButton: {
     backgroundColor: COLORS.accent,
     borderRadius: 30,

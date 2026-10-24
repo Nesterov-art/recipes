@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { AccessibilityInfo, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CATEGORIES, type Recipe } from '@/constants/recipes';
@@ -29,17 +29,19 @@ export default function FormScreen() {
   const [category, setCategory] = useState<string | null>(initial?.category ?? null);
   const [draftId] = useState(() => initial?.id ?? `${Date.now()}-${Math.random()}`);
   const saving = useRef(false);
+  const [errors, setErrors] = useState({ title: false, time: false });
 
   async function handleSave() {
     if (saving.current) return;
     const normalizedTitle = title.trim();
     const normalizedTime = Number(time);
-    if (!normalizedTitle) {
-      Alert.alert(t('titleRequired'), t('titleRequiredMessage'));
-      return;
-    }
-    if (!Number.isFinite(normalizedTime) || normalizedTime < 0) {
-      Alert.alert(t('invalidTime'), t('invalidTimeMessage'));
+    const nextErrors = { title: !normalizedTitle, time: !Number.isFinite(normalizedTime) || normalizedTime < 0 };
+    setErrors(nextErrors);
+    if (nextErrors.title || nextErrors.time) {
+      if (Platform.OS !== 'web') AccessibilityInfo.announceForAccessibility([
+        ...(nextErrors.title ? [t('titleRequiredMessage')] : []),
+        ...(nextErrors.time ? [t('invalidTimeMessage')] : []),
+      ].join('. '));
       return;
     }
 
@@ -87,22 +89,28 @@ export default function FormScreen() {
         <TextInput
           style={styles.field}
           value={title}
-          onChangeText={setTitle}
+          onChangeText={value => { setTitle(value); setErrors(current => ({ ...current, title: false })); }}
+          accessibilityLabel={t('title')}
+          accessibilityHint={errors.title ? t('titleRequiredMessage') : undefined}
           placeholder={t('titlePlaceholder')}
           placeholderTextColor={colors.muted}
           selectionColor={colors.text}
         />
+        {errors.title && <Text nativeID="recipe-title-error" accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.fieldError}>{t('titleRequiredMessage')}</Text>}
 
         <Text style={styles.fieldLabel}>{t('timeMinutes')}</Text>
         <TextInput
           style={styles.field}
           value={time}
-          onChangeText={setTime}
+          onChangeText={value => { setTime(value); setErrors(current => ({ ...current, time: false })); }}
+          accessibilityLabel={t('timeMinutes')}
+          accessibilityHint={errors.time ? t('invalidTimeMessage') : undefined}
           placeholder="15"
           placeholderTextColor={colors.muted}
           selectionColor={colors.text}
           keyboardType="number-pad"
         />
+        {errors.time && <Text nativeID="recipe-time-error" accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.fieldError}>{t('invalidTimeMessage')}</Text>}
 
         <Text style={styles.fieldLabel}>{t('category')}</Text>
         <View style={styles.chipsWrap}>

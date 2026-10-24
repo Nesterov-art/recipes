@@ -98,3 +98,12 @@ test('handles empty data and no matches', () => {
   assert.deepEqual(matchRecipesToShoppingList([], [item('Яйца')]), []);
   assert.deepEqual(matchRecipesToShoppingList(recipes, [item('Молоко')]), []);
 });
+
+test('known textual quantities match both new ingredients and unchanged legacy shopping names', () => {
+  const recipes = [recipe('salt', ['Соль — по вкусу']), recipe('oil', ['Масло — для жарки']), recipe('sauce', ['Соус — кисло-сладкий'])];
+  const matches = matchRecipesToShoppingList(recipes, [item('Соль'), item('Масло'), item('Соус')]);
+  assert.deepEqual(matches.map(match => match.recipe.id), ['salt', 'oil']);
+  assert(matches.every(match => match.matchRatio === 1 && match.missingIngredients.length === 0));
+  const legacy = [{ id: 'old', name: 'Соль — по вкусу', text: 'Соль — по вкусу', checked: true }];
+  assert.equal(matchRecipesToShoppingList([recipe('plain', ['Соль'])], legacy)[0].matchedCount, 1);
+});

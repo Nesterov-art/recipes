@@ -1,12 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { useRef } from 'react';
+import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useRecipes } from '@/context/recipes-context';
 import { useSettings } from '@/context/settings-context';
 import { useStyles } from '@/styles';
+import { confirmDelete } from '@/utils/confirm-delete';
 import {
   categoryLabel,
   cookingDateLabel,
@@ -29,6 +31,7 @@ export default function RecipeScreen() {
   const fromRandom = first(params.fromRandom) === 'true';
   const { recipes, visible, deleteRecipe, getRecipeMeta, pickRandom, toggleFavorite } = useRecipes();
   const selected = recipes.find((recipe) => recipe.id === id);
+  const deleting = useRef(false);
 
   if (!selected) return <View style={styles.screen} />;
 
@@ -39,17 +42,16 @@ export default function RecipeScreen() {
   const lastRatedCooking = meta.cookings.find((cooking) => cooking.rating);
   const lastNotedCooking = meta.cookings.find((cooking) => cooking.note);
 
-  function confirmDelete() {
-    Alert.alert(t('deleteQuestion'), selectedTitle, [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('delete'),
-        style: 'destructive',
-        onPress: async () => {
-          await deleteRecipe(selectedId, () => router.back());
-        },
-      },
-    ]);
+  async function handleDelete() {
+    if (deleting.current) return;
+    deleting.current = true;
+    try {
+      if (await confirmDelete(t('deleteQuestion'), selectedTitle, t('delete'), t('cancel'))) {
+        await deleteRecipe(selectedId, () => router.back());
+      }
+    } finally {
+      deleting.current = false;
+    }
   }
 
   function handleAnother() {
@@ -233,7 +235,7 @@ export default function RecipeScreen() {
         </View>
 
         <Pressable
-          onPress={confirmDelete}
+          onPress={handleDelete}
           style={({ pressed }) => [
             styles.group,
             styles.deleteRow,

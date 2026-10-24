@@ -29,7 +29,7 @@ export function AppToast() {
       pointerEvents="none"
       style={[styles.toast, { top: insets.top + 8, shadowColor: colors.text }]}
     >
-      <Text style={styles.toastText}>{notice.message}</Text>
+      <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.toastText}>{notice.message}</Text>
     </Animated.View>
   );
 }

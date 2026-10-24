@@ -39,6 +39,14 @@ test('full profile round trip retains every meaningful field and exact grocery o
   assert.deepEqual(restored.profile, profile);
   assert(!serializeProfileBackup(profile).includes('app-onboarding'));
 });
+
+test('existing full-profile format preserves shopping explanations without extra storage fields', () => {
+  const input = { ...profile, shoppingItems: [
+    { id: 'salt', name: 'Соль', text: 'Соль — по вкусу', checked: true },
+    { id: 'oil', name: 'Масло', text: 'Масло — 300 г (для жарки)', quantity: 300, unit: 'г', checked: false },
+  ] };
+  assert.deepEqual(parseBackupFile(serializeProfileBackup(input)).profile.shoppingItems, input.shoppingItems);
+});
 test('recipe v1 remains supported; full profile can add only recipes without touching other areas', () => {
   const v1 = { format: 'recipes-backup', version: 1, exportedAt: cooking.cookedAt, recipes: [recipe], recipeMeta: profile.recipeMeta };
   assert.deepEqual(parseBackupFile(JSON.stringify(v1)), parseRecipeBackup(JSON.stringify(v1)));

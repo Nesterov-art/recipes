@@ -144,3 +144,48 @@ test('moves checked items down without changing order inside either group', () =
     'salt',
   ]);
 });
+
+test('known textual amounts merge by product while preserving their explanation', () => {
+  for (const [name, qualifier] of [['Соль', 'по вкусу'], ['Масло', 'для жарки'], ['Salt', 'to taste'], ['Oil', 'for frying']]) {
+    const result = mergeShoppingEntries([item(name, 'existing')], [`${name} — ${qualifier}`]);
+    assert.equal(result.items.length, 1);
+    assert.equal(result.items[0].name, name);
+    assert.equal(result.items[0].text, `${name} — ${qualifier}`);
+    assert.equal(result.items[0].quantity, undefined);
+    assert.deepEqual(migrateShoppingItems(JSON.parse(JSON.stringify(result.items))), result.items);
+    assert.deepEqual(mergeShoppingEntries(result.items, [`${name} — ${qualifier}`]).items, result.items);
+  }
+});
+
+test('textual explanations survive numerical amounts, conversions, editing and reload', () => {
+  const first = mergeShoppingEntries([item('Масло — для жарки', 'oil')], ['масло — 200 г']);
+  const next = mergeShoppingEntries(first.items, ['Масло — 0,1 кг']);
+  assert.equal(next.items.length, 1);
+  assert.equal(next.items[0].quantity, 300);
+  assert.equal(next.items[0].text, 'Масло — 300 г (для жарки)');
+  assert.deepEqual(migrateShoppingItems(JSON.parse(JSON.stringify(next.items))), next.items);
+  const edited = updateShoppingItem(next.items[0], 'Масло — 400 г (для жарки)');
+  assert.equal(edited.quantity, 400);
+  assert.equal(edited.unit, 'г');
+  assert.equal(edited.text, 'Масло — 400 г (для жарки)');
+});
+
+test('legacy names with qualifiers match without rewriting or collapsing stored records on load', () => {
+  const legacy = [
+    { id: 'salt', name: 'Соль — по вкусу', text: 'Соль — по вкусу', checked: true },
+    { id: 'plain', name: 'Соль', text: 'Соль', checked: false },
+  ];
+  assert.deepEqual(migrateShoppingItems(legacy), legacy);
+  assert.equal(normalizeProductName(legacy[0].name), 'соль');
+  const merged = mergeShoppingEntries(legacy.slice(0, 1), ['Соль']);
+  assert.equal(merged.items.length, 1);
+  assert.equal(merged.items[0].text, 'Соль — по вкусу');
+});
+
+test('unknown dash suffixes and compound product names remain distinct', () => {
+  for (const name of ['Соус — кисло-сладкий', 'Масло — кокосовое', 'Масло для жарки', 'Зелёный лук', 'Соль — по вкусу повара']) {
+    assert.equal(parseShoppingEntry(name).name, name);
+  }
+  assert.equal(mergeShoppingEntries([item('Лук')], ['Зелёный лук']).items.length, 2);
+  assert.equal(mergeShoppingEntries([item('Соус')], ['Соус — кисло-сладкий']).items.length, 2);
+});

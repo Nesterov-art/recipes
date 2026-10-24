@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Alert } from 'react-native';
 
 import {
   CATEGORIES,
@@ -148,12 +147,9 @@ export function RecipesProvider({ children }: PropsWithChildren) {
       }, () => { showToast(t('recipeDeleted')); onSaved?.(); }),
       pickRandom: () => {
         if (visible.length === 0) {
-          Alert.alert(
-            t('emptyRandomTitle'),
-            recipes.length === 0
+          showToast(`${t('emptyRandomTitle')}. ${recipes.length === 0
               ? t('emptyRandomRecipes')
-              : t('emptyRandomFilter'),
-          );
+              : t('emptyRandomFilter')}`);
           return null;
         }
         const recipe = pickSmartRandom(visible, recipeMeta, {

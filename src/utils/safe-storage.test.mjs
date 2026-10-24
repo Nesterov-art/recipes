@@ -102,6 +102,19 @@ test('shopping migration repeats without reassigning IDs, changing order or merg
   const second = new SafeStore(io, shoppingConfig); await second.load();
   assert.equal(io.data.get('shopping-list-v1'), raw); assert.equal(second.getSnapshot().data[1].checked, true);
 });
+
+test('loading qualified legacy shopping names preserves the original payload byte-for-byte', async () => {
+  const raw = JSON.stringify([
+    { id: 'salt', name: 'Соль — по вкусу', text: 'Соль — по вкусу', checked: true },
+    { id: 'oil', name: 'Масло — для жарки', text: 'Масло — для жарки', checked: false },
+  ]);
+  const io = adapter({ 'shopping-list-v1': raw });
+  const store = new SafeStore(io, shoppingConfig);
+  await store.load();
+  assert.equal(io.data.get('shopping-list-v1'), raw);
+  assert.deepEqual(io.log, []);
+  assert.equal(store.getSnapshot().data.length, 2);
+});
 test('settings read/parse/unsupported errors do not write defaults', async () => {
   for (const raw of ['broken', 'null', '{"version":99,"language":"en"}', '{"theme":["dark"]}', '{"language":["en"]}']) {
     const io = adapter({ 'app-settings-v1': raw }); const store = new SafeStore(io, settingsConfig);
