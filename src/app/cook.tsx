@@ -8,6 +8,7 @@ import type { CookingRating } from '@/constants/recipes';
 import { useRecipes } from '@/context/recipes-context';
 import { useSettings } from '@/context/settings-context';
 import { useStyles } from '@/styles';
+import { keyboardDismissOnDrag } from '@/utils/keyboard-dismiss';
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -43,7 +44,7 @@ export default function CookScreen() {
     <View style={styles.screen}>
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode={keyboardDismissOnDrag}
         automaticallyAdjustKeyboardInsets
         contentContainerStyle={{
           paddingTop: insets.top + 8,

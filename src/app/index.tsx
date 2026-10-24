@@ -10,6 +10,7 @@ import { FILTERS } from '@/constants/recipes';
 import { useRecipes } from '@/context/recipes-context';
 import { useSettings } from '@/context/settings-context';
 import { useStyles } from '@/styles';
+import { keyboardDismissOnDrag } from '@/utils/keyboard-dismiss';
 import { categoryLabel, filterLabel, plural, todayLabel } from '@/utils/recipes';
 
 const MIN_BOTTOM_GAP = 8;
@@ -211,7 +212,7 @@ export default function HomeScreen() {
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode={keyboardDismissOnDrag}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={
           <Text style={styles.empty}>

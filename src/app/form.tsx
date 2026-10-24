@@ -8,6 +8,7 @@ import { CATEGORIES, type Recipe } from '@/constants/recipes';
 import { useRecipes } from '@/context/recipes-context';
 import { useSettings } from '@/context/settings-context';
 import { useStyles } from '@/styles';
+import { keyboardDismissOnDrag } from '@/utils/keyboard-dismiss';
 import { categoryLabel, toLines } from '@/utils/recipes';
 
 function first(value: string | string[] | undefined) {
@@ -62,7 +63,7 @@ export default function FormScreen() {
     <View style={styles.screen}>
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode={keyboardDismissOnDrag}
         automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{

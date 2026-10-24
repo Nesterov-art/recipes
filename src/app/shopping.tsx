@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '@/context/settings-context';
 import { useShopping } from '@/context/shopping-context';
 import { useStyles } from '@/styles';
+import { keyboardDismissOnDrag } from '@/utils/keyboard-dismiss';
 import { orderShoppingItems, type ShoppingItem } from '@/utils/shopping';
 
 export default function ShoppingScreen() {
@@ -320,7 +321,7 @@ export default function ShoppingScreen() {
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode={keyboardDismissOnDrag}
       />
     </View>
   );
