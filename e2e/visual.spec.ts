@@ -32,6 +32,12 @@ for (const theme of ['light', 'dark'] as const) {
       await visualReady(page);
       await expect(page).toHaveScreenshot('settings-large-text.png');
     });
+    test('about screen @visual', async ({ page }) => {
+      await page.goto('/about');
+      await expect(page.getByTestId('about-screen').getByText('Monorec', { exact: true })).toBeVisible();
+      await visualReady(page);
+      await expect(page).toHaveScreenshot('about.png');
+    });
     test.describe('empty', () => {
       test.use({ seedRecipes: [], seedShopping: [] });
       test('empty states @visual', async ({ page }) => {

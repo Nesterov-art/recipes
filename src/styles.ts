@@ -242,6 +242,8 @@ function createStyles(COLORS: AppColors, fontScale: number) {
   settingsRowBody: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   settingsRowBodyStacked: { flexDirection: 'column', alignItems: 'flex-start', gap: 2 },
   settingsRowText: { flexShrink: 1, flexGrow: 1, color: COLORS.text, fontSize: fs(17), lineHeight: fs(22) },
+  settingsRowLabels: { flexShrink: 1, flexGrow: 1, gap: 2 },
+  settingsRowDetail: { color: COLORS.muted, fontSize: fs(15), lineHeight: fs(20) },
   settingsRowValue: { flexShrink: 1, color: COLORS.muted, fontSize: fs(15), lineHeight: fs(20), textAlign: 'right' },
   settingsRowValueStacked: { textAlign: 'left' },
   settingsSeparator: {
@@ -254,6 +256,15 @@ function createStyles(COLORS: AppColors, fontScale: number) {
   settingsFooterIcon: { width: 48, height: 48, borderRadius: 11, marginBottom: 12 },
   settingsFooterName: { fontSize: fs(15), lineHeight: fs(20), fontWeight: '600', color: COLORS.text },
   settingsFooterMeta: { fontSize: fs(13), lineHeight: fs(18), color: COLORS.muted, textAlign: 'center' },
+  aboutToolbarTitle: { flex: 1, fontSize: fs(17), lineHeight: fs(22), fontWeight: '600', color: COLORS.text, textAlign: 'center' },
+  // Balances the back button so the toolbar title stays centred.
+  aboutToolbarSpacer: { width: 44 },
+  aboutHero: { alignItems: 'center', marginTop: 8 },
+  aboutIcon: { width: 96, height: 96, borderRadius: 22 },
+  aboutName: { marginTop: 16, fontSize: fs(28), lineHeight: fs(34), fontWeight: '700', color: COLORS.text, textAlign: 'center' },
+  aboutVersion: { marginTop: 4, fontSize: fs(15), lineHeight: fs(20), color: COLORS.muted, textAlign: 'center' },
+  aboutDescription: { marginTop: 20, fontSize: fs(17), lineHeight: fs(26), color: COLORS.text, textAlign: 'center' },
+  aboutNote: { marginTop: 32, fontSize: fs(15), lineHeight: fs(20), color: COLORS.muted, textAlign: 'center' },
   optionMenu: {
     position: 'absolute',
     zIndex: 1,

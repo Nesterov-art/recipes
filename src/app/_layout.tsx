@@ -37,6 +37,7 @@ function RootNavigator() {
       <Stack.Screen name="shopping-matches" />
       <Stack.Screen name="history" />
       <Stack.Screen name="settings" />
+      <Stack.Screen name="about" />
       <Stack.Screen
         name="cook"
         options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}

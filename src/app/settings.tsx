@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
-import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useRef, useState, type RefObject } from 'react';
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { APP_ICONS } from '@/constants/app-icons';
 import type { Language } from '@/constants/i18n';
 import { MONOREC_THEMES, type ThemeMode } from '@/constants/theme';
 import {
@@ -19,12 +19,7 @@ import { OptionMenu, type MenuAnchor } from '@/components/option-menu';
 import { RecipeTransfer } from '@/components/recipe-transfer';
 import { SettingsRow, SettingsSection } from '@/components/settings-list';
 import { useStyles } from '@/styles';
-
-const FEEDBACK_URL = 'https://github.com/Nesterov-art/recipes/issues/new';
-const APP_ICONS = {
-  dark: require('../../assets/icon.png'),
-  light: require('../../assets/icon-light.png'),
-};
+import { openFeedback } from '@/utils/feedback';
 
 type MenuKey = 'theme' | 'language' | 'shopping';
 
@@ -73,13 +68,6 @@ function SettingsContent() {
   function openMenu(key: MenuKey, row: RefObject<View | null>) {
     row.current?.measureInWindow((x, y, width, height) => {
       setMenu({ key, anchor: { x, y, width, height } });
-    });
-  }
-
-  function openFeedback() {
-    const title = encodeURIComponent(`[${appVersion}] `);
-    void Linking.openURL(`${FEEDBACK_URL}?title=${title}`).catch((error) => {
-      console.warn('Unable to open feedback page', error);
     });
   }
 
@@ -151,7 +139,13 @@ function SettingsContent() {
               label={t('feedback')}
               accessory="external"
               role="link"
-              onPress={openFeedback}
+              onPress={() => openFeedback(appVersion)}
+            />
+            <SettingsRow
+              icon="information-circle-outline"
+              label={t('aboutMonorec')}
+              accessory="chevron"
+              onPress={() => router.push('/about')}
             />
           </SettingsSection>
 

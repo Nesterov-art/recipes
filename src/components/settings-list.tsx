@@ -41,6 +41,8 @@ export function SettingsHint({ children, role }: { children: ReactNode; role?: '
 type SettingsRowProps = {
   icon: IconName;
   label: string;
+  // Second line under the label, e.g. a role or short explanation.
+  detail?: string;
   value?: string;
   accessory?: Accessory;
   onPress?: () => void;
@@ -52,28 +54,34 @@ type SettingsRowProps = {
   ref?: Ref<View>;
 };
 
-export function SettingsRow({ icon, label, value, accessory, onPress, disabled = false, hint, expanded, role = 'button', ref }: SettingsRowProps) {
+export function SettingsRow({ icon, label, detail, value, accessory, onPress, disabled = false, hint, expanded, role = 'button', ref }: SettingsRowProps) {
   const styles = useStyles();
   const { colors, fontScale } = useSettings();
   const stacked = !!value && fontScale >= STACKED_FONT_SCALE;
+  const accessibilityLabel = `${label}${detail ? `, ${detail}` : ''}${value ? `: ${value}` : ''}`;
   const content = <>
     <View style={styles.settingsRowIcon}><Ionicons name={icon} size={20} color={colors.text} /></View>
     <View style={[styles.settingsRowBody, stacked && styles.settingsRowBodyStacked]}>
-      <Text style={styles.settingsRowText}>{label}</Text>
+      {detail
+        ? <View style={styles.settingsRowLabels}>
+          <Text style={styles.settingsRowText}>{label}</Text>
+          <Text style={styles.settingsRowDetail}>{detail}</Text>
+        </View>
+        : <Text style={styles.settingsRowText}>{label}</Text>}
       {!!value && <Text style={[styles.settingsRowValue, stacked && styles.settingsRowValueStacked]}>{value}</Text>}
     </View>
     {accessory && <Ionicons name={ACCESSORY_ICONS[accessory]} size={16} color={colors.muted} />}
   </>;
 
   if (!onPress) {
-    return <View ref={ref} accessible accessibilityLabel={value ? `${label}: ${value}` : label} style={styles.settingsRow}>{content}</View>;
+    return <View ref={ref} accessible accessibilityLabel={accessibilityLabel} style={styles.settingsRow}>{content}</View>;
   }
   return <Pressable
     ref={ref}
     onPress={onPress}
     disabled={disabled}
     accessibilityRole={role}
-    accessibilityLabel={value ? `${label}: ${value}` : label}
+    accessibilityLabel={accessibilityLabel}
     accessibilityState={{ disabled }}
     accessibilityHint={hint}
     aria-expanded={expanded}
