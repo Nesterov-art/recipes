@@ -62,6 +62,9 @@ test.describe('long content and fixed actions', () => {
     }).toBe(true);
     await save.click();
     await page.setViewportSize(original);
+    // Home stays mounted under the form, so the new card alone does not prove the
+    // form closed. Reloading before navigation finished would reload /form.
+    await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole('button', { name: 'Открыть рецепт Проверка клавиатуры', exact: true })).toBeVisible();
     await page.reload();
     await expect(page.getByRole('button', { name: 'Открыть рецепт Проверка клавиатуры', exact: true })).toBeVisible();

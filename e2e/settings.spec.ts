@@ -117,7 +117,8 @@ test.describe('narrow screen with large text', () => {
     const footer = page.getByText('Разработчик — Neyroshi', { exact: true });
     await footer.scrollIntoViewIfNeeded();
     await expect(footer).toBeInViewport();
-    await expect(page.getByText('Monorec', { exact: true })).toBeInViewport();
+    // The home heading "Monorec" stays mounted under Settings; check the footer name.
+    await expect(page.getByText('Monorec', { exact: true }).and(page.locator(':not([role="heading"])'))).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
     const row = settingRow(page, 'Купленные');
