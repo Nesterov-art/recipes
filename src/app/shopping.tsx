@@ -15,6 +15,15 @@ import { useStyles } from '@/styles';
 import { keyboardDismissOnDrag } from '@/utils/keyboard-dismiss';
 import { orderShoppingItems, type ShoppingItem } from '@/utils/shopping';
 
+// Gesture Handler 3.3 on web drops the Swipeable's touchAction="pan-y" whenever it
+// resets a gesture config and leaves touch-action: none on the rows, so a touch that
+// starts on a row cannot scroll the list. Restore the pan-y the library intends.
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = '[data-testid="shopping-swipeable"] * { touch-action: pan-y !important; }';
+  document.head.appendChild(style);
+}
+
 export default function ShoppingScreen() {
   const insets = useSafeAreaInsets();
   const { colors, shoppingCompletedBehavior, t } = useSettings();
@@ -107,10 +116,12 @@ export default function ShoppingScreen() {
           if (swipeable) swipeableRefs.current.set(item.id, swipeable);
           else swipeableRefs.current.delete(item.id);
         }}
+        testID="shopping-swipeable"
         enabled={!gesturesDisabled && !isActive}
         friction={1.5}
         rightThreshold={48}
-        dragOffsetFromRightEdge={18}
+        // Gesture Handler 3 takes a signed offset: -18 matches the former 18 px edge offset.
+        dragOffsetFromRight={-18}
         overshootRight={false}
         containerStyle={styles.shoppingCard}
         childrenContainerStyle={styles.shoppingSwipeContent}
@@ -313,7 +324,7 @@ export default function ShoppingScreen() {
           >
             <Text style={styles.deleteText}>{t('clearCompleted')}</Text>
           </Pressable>
-        ) : null}
+        ) : undefined}
         contentContainerStyle={{
           paddingTop: insets.top + 8,
           paddingHorizontal: 16,

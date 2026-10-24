@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { ViewRef } from '@/components/settings-list';
 import { useSettings } from '@/context/settings-context';
 import { useStyles } from '@/styles';
 
@@ -36,7 +37,7 @@ export function OptionMenu<T extends string>({ title, anchor, options, selected,
   const { colors, fontScale, t } = useSettings();
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
-  const selectedRef = useRef<View>(null);
+  const selectedRef = useRef<ViewRef>(null);
   const latestOnClose = useRef(onClose);
   useEffect(() => { latestOnClose.current = onClose; });
 

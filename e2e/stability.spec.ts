@@ -136,6 +136,9 @@ test('back navigation retains the current search/filter state', async ({ page })
   const search = page.getByRole('textbox', { name: 'Поиск рецептов', exact: true });
   await search.fill('сыр'); await search.blur();
   await page.getByRole('button', { name: 'Открыть рецепт Омлет с сыром', exact: true }).click();
+  // Expo Router 58 commits navigation after the current render, so wait for the
+  // recipe to open before going back.
+  await expect(page).toHaveURL(/\/recipe\/e2e-omelet$/);
   await page.goBack();
   await expect(search).toHaveValue('сыр');
   await expect(page.getByRole('button', { name: /^Открыть рецепт / })).toHaveCount(1);

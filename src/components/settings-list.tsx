@@ -1,11 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Children, Fragment, type ReactNode, type Ref } from 'react';
+import { Children, Fragment, type ComponentRef, type ReactNode, type Ref } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { useSettings } from '@/context/settings-context';
 import { useStyles } from '@/styles';
 
 type IconName = keyof typeof Ionicons.glyphMap;
+// Instance behind a View ref (a host element since React Native 0.87).
+export type ViewRef = ComponentRef<typeof View>;
 type Accessory = 'chevron' | 'menu' | 'external';
 
 const ACCESSORY_ICONS: Record<Accessory, IconName> = {
@@ -51,7 +53,7 @@ type SettingsRowProps = {
   hint?: string;
   expanded?: boolean;
   role?: 'button' | 'link';
-  ref?: Ref<View>;
+  ref?: Ref<ViewRef>;
 };
 
 export function SettingsRow({ icon, label, detail, value, accessory, onPress, disabled = false, hint, expanded, role = 'button', ref }: SettingsRowProps) {

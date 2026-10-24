@@ -22,7 +22,8 @@ export function BackupFilePicker({ ref, onFile, onError }: BackupPickerProps) {
 export async function saveBackupFile(text: string, name: string): Promise<boolean> {
   if (!await Sharing.isAvailableAsync()) throw new Error('File sharing unavailable');
   const file = new File(Paths.cache, `${Date.now()}-${Math.random()}-${name}`);
-  file.create(); file.write(text);
+  // File.write() is async since SDK 58; share only after the backup is written.
+  file.create(); await file.write(text);
   await Sharing.shareAsync(file.uri, { mimeType: 'application/json', UTI: 'public.json', dialogTitle: name });
   // Native Share does not report whether the receiver actually saved the file.
   return true;

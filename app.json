@@ -24,6 +24,7 @@
     },
     "web": {
       "bundler": "metro",
+      "output": "single",
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
@@ -35,7 +36,12 @@
           "backgroundColor": "#000000"
         }
       ],
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "asyncRoutes": { "web": false }
+        }
+      ],
       "expo-status-bar",
       "expo-font",
       "expo-sharing"

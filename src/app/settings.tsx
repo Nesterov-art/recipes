@@ -17,7 +17,7 @@ import { useOnboarding } from '@/context/onboarding-context';
 import { useToast } from '@/context/toast-context';
 import { OptionMenu, type MenuAnchor } from '@/components/option-menu';
 import { RecipeTransfer } from '@/components/recipe-transfer';
-import { SettingsRow, SettingsSection } from '@/components/settings-list';
+import { SettingsRow, SettingsSection, type ViewRef } from '@/components/settings-list';
 import { useStyles } from '@/styles';
 import { openFeedback } from '@/utils/feedback';
 
@@ -45,9 +45,9 @@ function SettingsContent() {
   const { showToast } = useToast();
   const appVersion = Constants.expoConfig?.version ?? '—';
   const [menu, setMenu] = useState<{ key: MenuKey; anchor: MenuAnchor } | null>(null);
-  const themeRow = useRef<View>(null);
-  const languageRow = useRef<View>(null);
-  const shoppingRow = useRef<View>(null);
+  const themeRow = useRef<ViewRef>(null);
+  const languageRow = useRef<ViewRef>(null);
+  const shoppingRow = useRef<ViewRef>(null);
 
   const themes: { value: ThemeMode; label: string }[] = [
     { value: 'system', label: t('systemTheme') },
@@ -65,7 +65,7 @@ function SettingsContent() {
   const labelOf = <T extends string>(items: { value: T; label: string }[], value: T) =>
     items.find((item) => item.value === value)?.label ?? '';
 
-  function openMenu(key: MenuKey, row: RefObject<View | null>) {
+  function openMenu(key: MenuKey, row: RefObject<ViewRef | null>) {
     row.current?.measureInWindow((x, y, width, height) => {
       setMenu({ key, anchor: { x, y, width, height } });
     });
