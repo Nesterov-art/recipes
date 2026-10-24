@@ -1,4 +1,4 @@
-import { test, expect, openHome, shopping, visualReady } from './fixtures';
+import { test, expect, openHome, settingRow, shopping, visualReady } from './fixtures';
 
 for (const theme of ['light', 'dark'] as const) {
   test.describe(theme, () => {
@@ -24,11 +24,11 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(page).toHaveScreenshot('form.png');
       await page.getByRole('button', { name: 'Закрыть', exact: true }).click();
       await page.getByRole('button', { name: 'Настройки', exact: true }).click();
-      await expect(page.getByRole('button', { name: 'English', exact: true })).toBeVisible();
+      await expect(settingRow(page, 'Язык')).toBeVisible();
       await visualReady(page);
       await expect(page).toHaveScreenshot('settings.png');
       await page.evaluate(() => { document.documentElement.style.fontSize = '24px'; });
-      await expect(page.getByText('Как в системе', { exact: true }).last()).toBeVisible();
+      await expect(page.getByText('Оформление', { exact: true })).toBeVisible();
       await visualReady(page);
       await expect(page).toHaveScreenshot('settings-large-text.png');
     });

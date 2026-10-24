@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { BackupFilePicker, saveBackupFile, type BackupPickerHandle, type PickedBackup } from '@/components/backup-files';
+import { SettingsHint, SettingsRow, SettingsSection } from '@/components/settings-list';
 import { useRecipes } from '@/context/recipes-context';
 import { useSettings } from '@/context/settings-context';
 import { useToast } from '@/context/toast-context';
@@ -14,15 +14,6 @@ import { assertProfileReady, refreshStores, settleStores, withProfileLock } from
 
 type Mode = 'add' | 'restore';
 type Preview = { name: string; backup: ReturnType<typeof parseBackupFile>; mode: Mode; bytes: number; current?: Awaited<ReturnType<typeof captureProfile>> };
-
-function TransferRow({ label, icon, onPress, disabled }: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void; disabled: boolean }) {
-  const styles = useStyles();
-  const { colors } = useSettings();
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} accessibilityState={{ disabled }} onPress={onPress}
-    style={({ pressed }) => [styles.settingsRow, pressed && styles.pressed, { opacity: disabled ? 0.45 : 1 }]}>
-    <Ionicons name={icon} size={20} color={colors.text} /><Text style={styles.settingsRowText}>{label}</Text>
-  </Pressable>;
-}
 
 export function RecipeTransferContent() {
   const { recipes, recipeMeta, importRecipes } = useRecipes();
@@ -101,27 +92,9 @@ export function RecipeTransferContent() {
     } catch (err) { report(err); }
     finally { setBusy(false); working.current = false; }
   }
-  const paragraph = (text: ReactNode) => <Text style={{ color: colors.muted, fontSize: fs(14), lineHeight: fs(20), marginTop: 10 }}>{text}</Text>;
-  return <>
-    <BackupFilePicker ref={picker} onFile={selectFile} onError={err => report(err)} />
-    <Text style={styles.settingLabel}>{t('backupTitle')}</Text>
-    <View style={styles.settingsCard}>
-      <TransferRow label={t('backupExport')} icon="download-outline" onPress={() => void exportFile(false)} disabled={busy || recipes.length === 0} />
-      <View style={styles.settingsSeparator} />
-      <TransferRow label={t('backupImport')} icon="cloud-upload-outline" onPress={() => chooseFile('add')} disabled={busy} />
-    </View>
-    {paragraph(t('backupHint'))}
-    <Text style={styles.settingLabel}>{t('profileTitle')}</Text>
-    <View style={styles.settingsCard}>
-      <TransferRow label={t('profileExport')} icon="download-outline" onPress={() => void exportFile(true)} disabled={busy} />
-      <View style={styles.settingsSeparator} />
-      <TransferRow label={t('profileRestore')} icon="refresh-outline" onPress={() => chooseFile('restore')} disabled={busy} />
-    </View>
-    {paragraph(t('profileHint'))}
-    {largeExport && paragraph(t('profileLarge'))}
-    {paragraph(t('profileLastBackup', { date: lastBackup && Number.isFinite(Date.parse(lastBackup)) ? new Date(lastBackup).toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US') : t('profileNever') }))}
-    {preview && <View testID={preview.mode === 'add' ? 'recipe-import-preview' : 'profile-import-preview'} style={[styles.settingsCard, { padding: 18, marginTop: 16, gap: 12 }]}>
-      <Text accessibilityRole="header" style={{ color: colors.text, fontSize: fs(18), fontWeight: '600' }}>{t(preview.mode === 'add' ? 'backupPreview' : 'profilePreview')}</Text>
+  const paragraph = (text: ReactNode) => <Text style={{ color: colors.muted, fontSize: fs(15), lineHeight: fs(20) }}>{text}</Text>;
+  const previewCard = preview && <View testID={preview.mode === 'add' ? 'recipe-import-preview' : 'profile-import-preview'} style={[styles.settingsCard, { padding: 16, marginTop: 16, gap: 12 }]}>
+      <Text accessibilityRole="header" style={{ color: colors.text, fontSize: fs(17), lineHeight: fs(22), fontWeight: '600' }}>{t(preview.mode === 'add' ? 'backupPreview' : 'profilePreview')}</Text>
       {paragraph(preview.name)}
       {preview.mode === 'add' && summary && <>
         <Text style={{ color: colors.text, fontSize: fs(16) }}>{t('backupSummary', { added: summary.added, duplicates: summary.duplicates })}</Text>
@@ -141,13 +114,33 @@ export function RecipeTransferContent() {
       </>}
       {preview.bytes > LARGE_PROFILE_BYTES && paragraph(t('profileLarge'))}
       <Pressable accessibilityRole="button" disabled={busy} onPress={() => void confirm()}
-        style={{ minHeight: 48, backgroundColor: colors.accent, padding: 14, borderRadius: 24, alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.5 : 1 }}>
-        <Text style={{ color: colors.accentText, fontSize: fs(16), fontWeight: '600' }}>{t(preview.mode === 'add' ? 'backupConfirm' : 'profileConfirm')}</Text>
+        style={{ minHeight: 52, backgroundColor: colors.accent, paddingVertical: 14, paddingHorizontal: 20, borderRadius: 26, alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.5 : 1 }}>
+        <Text style={{ color: colors.accentText, fontSize: fs(17), lineHeight: fs(22), fontWeight: '600', textAlign: 'center' }}>{t(preview.mode === 'add' ? 'backupConfirm' : 'profileConfirm')}</Text>
       </Pressable>
-      <Pressable accessibilityRole="button" disabled={busy} onPress={() => { setPreview(null); setError(''); }} style={{ minHeight: 44, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: colors.muted, fontSize: fs(16) }}>{t('cancel')}</Text>
+      <Pressable accessibilityRole="button" disabled={busy} onPress={() => { setPreview(null); setError(''); }} style={{ minHeight: 48, justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ color: colors.text, fontSize: fs(17), lineHeight: fs(22) }}>{t('cancel')}</Text>
       </Pressable>
-    </View>}
-    {!!error && <Text accessibilityRole="alert" style={{ color: colors.danger, marginTop: 12, fontSize: fs(15) }}>{error}</Text>}
+    </View>;
+  return <>
+    <BackupFilePicker ref={picker} onFile={selectFile} onError={err => report(err)} />
+    <SettingsSection title={t('backupTitle')} footer={<>
+      {recipes.length === 0 && <SettingsHint>{t('backupExportEmpty')}</SettingsHint>}
+      <SettingsHint>{t('backupHint')}</SettingsHint>
+      {preview?.mode === 'add' && previewCard}
+    </>}>
+      <SettingsRow label={t('backupExport')} icon="download-outline" onPress={() => void exportFile(false)} disabled={busy || recipes.length === 0}
+        hint={recipes.length === 0 ? t('backupExportEmpty') : undefined} />
+      <SettingsRow label={t('backupImport')} icon="cloud-upload-outline" onPress={() => chooseFile('add')} disabled={busy} />
+    </SettingsSection>
+    <SettingsSection title={t('profileTitle')} footer={<>
+      <SettingsHint>{t('profileLastBackup', { date: lastBackup && Number.isFinite(Date.parse(lastBackup)) ? new Date(lastBackup).toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US') : t('profileNever') })}</SettingsHint>
+      <SettingsHint>{t('profileHint')}</SettingsHint>
+      {largeExport && <SettingsHint>{t('profileLarge')}</SettingsHint>}
+      {preview?.mode === 'restore' && previewCard}
+      {!!error && <SettingsHint role="alert">{error}</SettingsHint>}
+    </>}>
+      <SettingsRow label={t('profileExport')} icon="download-outline" onPress={() => void exportFile(true)} disabled={busy} />
+      <SettingsRow label={t('profileRestore')} icon="refresh-outline" onPress={() => chooseFile('restore')} disabled={busy} />
+    </SettingsSection>
   </>;
 }

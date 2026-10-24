@@ -1,4 +1,4 @@
-import { test, expect, openHome } from './fixtures';
+import { test, expect, openHome, chooseSetting, settingRow } from './fixtures';
 
 test('search matches title, ingredients and all terms; clearing restores results', async ({ page }) => {
   await openHome(page);
@@ -56,12 +56,11 @@ test('favorite and appearance settings survive reload', async ({ page }) => {
   await page.getByRole('button', { name: 'Любимые', exact: true }).click();
   await expect(page.getByRole('button', { name: /^Открыть рецепт / })).toHaveCount(1);
   await page.getByRole('button', { name: 'Настройки', exact: true }).click();
-  await page.getByRole('button', { name: /Тёмная$/ }).click();
-  await page.getByRole('button', { name: 'English', exact: true }).click();
+  await chooseSetting(page, 'Оформление', 'Тёмная');
+  await chooseSetting(page, 'Язык', 'English');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('app-settings-v1') ?? '{}'))).toMatchObject({ theme: 'dark', language: 'en' });
   await page.reload();
-  for (const label of ['Dark', 'English']) {
-    await expect(page.getByRole('button', { name: new RegExp(`${label}$`) })).toHaveAttribute('aria-selected', 'true');
-  }
+  await expect(settingRow(page, 'Appearance')).toHaveAccessibleName('Appearance: Dark');
+  await expect(settingRow(page, 'Language')).toHaveAccessibleName('Language: English');
 });
 

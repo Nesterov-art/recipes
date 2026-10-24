@@ -1,4 +1,4 @@
-import { test, expect, openHome } from './fixtures';
+import { test, expect, openHome, chooseSetting } from './fixtures';
 
 test('export exposes the manifest, iPhone metadata and real PNG assets', async ({ page, request }) => {
   await openHome(page);
@@ -8,7 +8,7 @@ test('export exposes the manifest, iPhone metadata and real PNG assets', async (
   await expect(page.locator('#app-favicon')).toHaveAttribute('href', '/favicon-cookbook-light.png');
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/apple-touch-icon-cookbook-light.png');
   await page.getByRole('button', { name: 'Настройки', exact: true }).click();
-  await page.getByRole('button', { name: /Тёмная$/ }).click();
+  await chooseSetting(page, 'Оформление', 'Тёмная');
   await expect(page.locator('#app-favicon')).toHaveAttribute('href', '/favicon-cookbook-dark.png');
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/apple-touch-icon-cookbook-dark.png');
   const response = await request.get('/manifest.json');

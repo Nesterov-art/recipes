@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import { readFile } from 'node:fs/promises';
-import { test, expect, recipes, openHome } from './fixtures';
+import { test, expect, recipes, openHome, chooseSetting, settingRow } from './fixtures';
 
 const bookKey = 'recipe-book-v1';
 const rawBook = JSON.stringify({ recipes, recipeMeta: {} });
@@ -176,11 +176,11 @@ test('failed settings write does not change saved preferences and can be retried
     };
   });
   await openHome(page); await page.getByRole('button', { name: 'Настройки', exact: true }).click();
-  await page.getByRole('button', { name: /Тёмная$/ }).click();
+  await chooseSetting(page, 'Оформление', 'Тёмная');
   await expect(page.getByRole('alert')).toHaveText('Не удалось сохранить изменения');
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('app-settings-v1')!).theme)).toBe('light');
   await page.getByRole('button', { name: 'Повторить сохранение', exact: true }).click();
-  await expect(page.getByRole('button', { name: /Тёмная$/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(settingRow(page, 'Оформление')).toHaveAccessibleName('Оформление: Тёмная');
   await page.reload();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('app-settings-v1')!).theme)).toBe('dark');
 });

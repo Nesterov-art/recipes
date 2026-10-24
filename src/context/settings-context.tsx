@@ -58,3 +58,10 @@ export function SettingsProvider({ children }: PropsWithChildren) {
 
   return <SettingsContext.Provider value={value}><StorageGuard {...storage} colors={value.colors} t={value.t}>{children}</StorageGuard></SettingsContext.Provider>;
 }
+
+// Gives a redesigned screen its palette without touching screens not yet migrated.
+export function PaletteProvider({ palette, children }: PropsWithChildren<{ palette: Record<ResolvedThemeMode, AppColors> }>) {
+  const settings = useSettings();
+  const value = useMemo(() => ({ ...settings, colors: palette[settings.resolvedTheme] }), [palette, settings]);
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
+}

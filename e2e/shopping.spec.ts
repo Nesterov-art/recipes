@@ -1,4 +1,4 @@
-import { test, expect, openHome, addItem, rows, expectOrder, shopping, revealShoppingActions } from './fixtures';
+import { test, expect, openHome, addItem, rows, expectOrder, shopping, revealShoppingActions, chooseSetting } from './fixtures';
 
 test('manual add, compatible quantity merge, edit, check and clear persist', async ({ page, context }) => {
   await openHome(page);
@@ -55,7 +55,7 @@ test.describe('completed item preference', () => {
   test('keep in place is saved and used after reopening shopping', async ({ page }) => {
     await openHome(page);
     await page.getByRole('button', { name: 'Настройки', exact: true }).click();
-    await page.getByRole('button', { name: 'Оставлять на месте', exact: true }).click();
+    await chooseSetting(page, 'Купленные', 'Оставлять на месте');
     await page.getByRole('button', { name: 'Назад', exact: true }).click();
     await page.getByRole('button', { name: 'Открыть список покупок', exact: true }).click();
     await rows(page).first().getByRole('checkbox').click();

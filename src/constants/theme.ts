@@ -28,3 +28,18 @@ export const THEMES: Record<ResolvedThemeMode, AppColors> = {
     danger: '#D70015', success: '#248A3D', secondaryBorder: 'rgba(0,0,0,0.08)', fadeEnd: 'rgba(242,242,247,0.96)',
   },
 };
+
+// Approved Monorec palette (docs/design/design-guide.md, section 4). Screens adopt
+// it one redesign pass at a time through PaletteProvider; THEMES stays the default.
+export const MONOREC_THEMES: Record<ResolvedThemeMode, AppColors> = {
+  dark: {
+    bg: '#0B0B0C', card: '#1C1C1E', cardPressed: '#2C2C2E', separator: '#38383A',
+    text: '#F5F5F7', muted: '#A0A0A6', accent: '#FFFFFF', accentText: '#000000',
+    danger: '#FF6961', success: '#73C995', secondaryBorder: 'rgba(255,255,255,0.12)', fadeEnd: 'rgba(11,11,12,0.94)',
+  },
+  light: {
+    bg: '#F5F4F0', card: '#FFFFFF', cardPressed: '#E9E8E4', separator: '#DEDDD8',
+    text: '#171717', muted: '#65656B', accent: '#000000', accentText: '#FFFFFF',
+    danger: '#B42318', success: '#246B45', secondaryBorder: 'rgba(0,0,0,0.08)', fadeEnd: 'rgba(245,244,240,0.96)',
+  },
+};

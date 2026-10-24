@@ -55,6 +55,17 @@ export async function addItem(page: Page, text: string) {
   await expect(page.getByPlaceholder('Добавить продукт', { exact: true })).toHaveValue('');
 }
 
+// Settings rows are named "<title>: <current value>" and open a single-choice menu.
+export function settingRow(page: Page, title: string) {
+  return page.getByRole('button', { name: new RegExp(`^${title}: `) });
+}
+
+export async function chooseSetting(page: Page, title: string, option: string) {
+  await settingRow(page, title).click();
+  await page.getByRole('radio', { name: option, exact: true }).click();
+  await expect(page.getByRole('radio')).toHaveCount(0);
+}
+
 export function rows(page: Page) {
   return page.getByTestId('shopping-row');
 }

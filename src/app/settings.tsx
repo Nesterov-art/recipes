@@ -2,27 +2,42 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useRef, useState, type RefObject } from 'react';
+import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Language } from '@/constants/i18n';
-import type { ThemeMode } from '@/constants/theme';
+import { MONOREC_THEMES, type ThemeMode } from '@/constants/theme';
 import {
+  PaletteProvider,
   useSettings,
   type ShoppingCompletedBehavior,
 } from '@/context/settings-context';
 import { useOnboarding } from '@/context/onboarding-context';
 import { useToast } from '@/context/toast-context';
+import { OptionMenu, type MenuAnchor } from '@/components/option-menu';
 import { RecipeTransfer } from '@/components/recipe-transfer';
+import { SettingsRow, SettingsSection } from '@/components/settings-list';
 import { useStyles } from '@/styles';
 
 const FEEDBACK_URL = 'https://github.com/Nesterov-art/recipes/issues/new';
+const APP_ICONS = {
+  dark: require('../../assets/icon.png'),
+  light: require('../../assets/icon-light.png'),
+};
+
+type MenuKey = 'theme' | 'language' | 'shopping';
 
 export default function SettingsScreen() {
+  return <PaletteProvider palette={MONOREC_THEMES}><SettingsContent /></PaletteProvider>;
+}
+
+function SettingsContent() {
   const insets = useSafeAreaInsets();
   const {
     colors,
     language,
+    resolvedTheme,
     setLanguage,
     setShoppingCompletedBehavior,
     setTheme,
@@ -34,20 +49,32 @@ export default function SettingsScreen() {
   const { restart } = useOnboarding();
   const { showToast } = useToast();
   const appVersion = Constants.expoConfig?.version ?? '—';
+  const [menu, setMenu] = useState<{ key: MenuKey; anchor: MenuAnchor } | null>(null);
+  const themeRow = useRef<View>(null);
+  const languageRow = useRef<View>(null);
+  const shoppingRow = useRef<View>(null);
 
-  const themes: { value: ThemeMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-    { value: 'system', label: t('systemTheme'), icon: 'contrast-outline' },
-    { value: 'light', label: t('light'), icon: 'sunny-outline' },
-    { value: 'dark', label: t('dark'), icon: 'moon-outline' },
+  const themes: { value: ThemeMode; label: string }[] = [
+    { value: 'system', label: t('systemTheme') },
+    { value: 'light', label: t('light') },
+    { value: 'dark', label: t('dark') },
   ];
   const languages: { value: Language; label: string }[] = [
     { value: 'ru', label: t('russian') },
     { value: 'en', label: t('english') },
   ];
   const shoppingBehaviors: { value: ShoppingCompletedBehavior; label: string }[] = [
-    { value: 'keep', label: t('keepCompletedInPlace') },
     { value: 'moveDown', label: t('moveCompletedDown') },
+    { value: 'keep', label: t('keepCompletedInPlace') },
   ];
+  const labelOf = <T extends string>(items: { value: T; label: string }[], value: T) =>
+    items.find((item) => item.value === value)?.label ?? '';
+
+  function openMenu(key: MenuKey, row: RefObject<View | null>) {
+    row.current?.measureInWindow((x, y, width, height) => {
+      setMenu({ key, anchor: { x, y, width, height } });
+    });
+  }
 
   function openFeedback() {
     const title = encodeURIComponent(`[${appVersion}] `);
@@ -59,143 +86,113 @@ export default function SettingsScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView
-        contentContainerStyle={{
-          paddingTop: insets.top + 8,
-          paddingHorizontal: 16,
-          paddingBottom: insets.bottom + 40,
-        }}
+        contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.topBar}>
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={10}
-            style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel={t('back')}
-          >
-            <Ionicons name="chevron-back" size={24} color={colors.text} />
-          </Pressable>
-        </View>
-
-        <Text style={styles.bigTitle}>{t('settings')}</Text>
-
-        <Text style={styles.settingLabel}>{t('appearance')}</Text>
-        <View style={styles.settingsGroup}>
-          <View style={styles.choiceRow}>
-            {themes.map((item) => {
-              const active = theme === item.value;
-              return (
-                <Pressable
-                  key={item.value}
-                  onPress={() => setTheme(item.value)}
-                  style={({ pressed }) => [
-                    styles.choice,
-                    styles.themeChoice,
-                    active && styles.choiceActive,
-                    pressed && styles.pressed,
-                  ]}
-                  accessibilityRole="button"
-                  aria-selected={active}
-                  accessibilityState={{ selected: active }}
-                >
-                  <Ionicons
-                    name={item.icon}
-                    size={20}
-                    color={active ? colors.accentText : colors.text}
-                  />
-                  <Text style={[styles.choiceText, active && styles.choiceTextActive]}>{item.label}</Text>
-                </Pressable>
-              );
-            })}
+        <View style={styles.settingsContent}>
+          <View style={styles.topBar}>
+            <Pressable
+              onPress={() => router.back()}
+              hitSlop={10}
+              style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel={t('back')}
+            >
+              <Ionicons name="chevron-back" size={24} color={colors.text} />
+            </Pressable>
           </View>
-        </View>
 
-        <Text style={styles.settingLabel}>{t('language')}</Text>
-        <View style={styles.settingsGroup}>
-          <View style={styles.choiceRow}>
-            {languages.map((item) => {
-              const active = language === item.value;
-              return (
-                <Pressable
-                  key={item.value}
-                  onPress={() => setLanguage(item.value)}
-                  style={({ pressed }) => [
-                    styles.choice,
-                    active && styles.choiceActive,
-                    pressed && styles.pressed,
-                  ]}
-                  accessibilityRole="button"
-                  aria-selected={active}
-                  accessibilityState={{ selected: active }}
-                >
-                  <Text style={[styles.choiceText, active && styles.choiceTextActive]}>{item.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
+          <Text accessibilityRole="header" style={styles.settingsTitle}>{t('settings')}</Text>
 
-        <Text style={styles.settingLabel}>{t('shoppingBehavior')}</Text>
-        <View style={styles.settingsGroup}>
-          <View style={styles.choiceRow}>
-            {shoppingBehaviors.map((item) => {
-              const active = shoppingCompletedBehavior === item.value;
-              return (
-                <Pressable
-                  key={item.value}
-                  onPress={() => setShoppingCompletedBehavior(item.value)}
-                  style={({ pressed }) => [
-                    styles.choice,
-                    active && styles.choiceActive,
-                    pressed && styles.pressed,
-                  ]}
-                  accessibilityRole="button"
-                  aria-selected={active}
-                  accessibilityState={{ selected: active }}
-                >
-                  <Text style={[styles.choiceText, active && styles.choiceTextActive]}>
-                    {item.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
+          <SettingsSection title={t('preferences')}>
+            <SettingsRow
+              ref={themeRow}
+              icon="contrast-outline"
+              label={t('appearance')}
+              value={labelOf(themes, theme)}
+              accessory="menu"
+              expanded={menu?.key === 'theme'}
+              onPress={() => openMenu('theme', themeRow)}
+            />
+            <SettingsRow
+              ref={languageRow}
+              icon="language-outline"
+              label={t('language')}
+              value={labelOf(languages, language)}
+              accessory="menu"
+              expanded={menu?.key === 'language'}
+              onPress={() => openMenu('language', languageRow)}
+            />
+          </SettingsSection>
 
-        <RecipeTransfer />
+          <SettingsSection title={t('shoppingBehavior')}>
+            <SettingsRow
+              ref={shoppingRow}
+              icon="checkmark-circle-outline"
+              label={t('completedItems')}
+              value={labelOf(shoppingBehaviors, shoppingCompletedBehavior)}
+              accessory="menu"
+              expanded={menu?.key === 'shopping'}
+              onPress={() => openMenu('shopping', shoppingRow)}
+            />
+          </SettingsSection>
 
-        <Text style={styles.settingLabel}>{t('aboutApp')}</Text>
-        <View style={styles.settingsCard}>
-          <Pressable
-            accessibilityLabel={t('onboardingReplay')}
-            onPress={() => { void restart().catch(() => showToast(t('onboardingSaveError'))); }}
-            style={({ pressed }) => [styles.settingsRow, pressed && styles.pressed]}
-            accessibilityRole="button"
-          >
-            <Ionicons name="book-outline" size={20} color={colors.text} />
-            <Text style={styles.settingsRowText}>{t('onboardingReplay')}</Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-          </Pressable>
-          <View style={styles.settingsSeparator} />
-          <Pressable
-            onPress={openFeedback}
-            style={({ pressed }) => [styles.settingsRow, pressed && styles.pressed]}
-            accessibilityRole="link"
-            accessibilityLabel={t('feedback')}
-          >
-            <Ionicons name="chatbubble-outline" size={20} color={colors.text} />
-            <Text style={styles.settingsRowText}>{t('feedback')}</Text>
-            <Ionicons name="open-outline" size={18} color={colors.muted} />
-          </Pressable>
-          <View style={styles.settingsSeparator} />
-          <View style={styles.settingsRow}>
-            <Ionicons name="information-circle-outline" size={20} color={colors.text} />
-            <Text style={styles.settingsRowText}>{t('version')}</Text>
-            <Text style={styles.settingsRowValue}>{appVersion}</Text>
+          <RecipeTransfer />
+
+          <SettingsSection title={t('appSection')}>
+            <SettingsRow
+              icon="book-outline"
+              label={t('onboardingReplay')}
+              accessory="chevron"
+              onPress={() => { void restart().catch(() => showToast(t('onboardingSaveError'))); }}
+            />
+            <SettingsRow
+              icon="chatbubble-outline"
+              label={t('feedback')}
+              accessory="external"
+              role="link"
+              onPress={openFeedback}
+            />
+          </SettingsSection>
+
+          <View style={styles.settingsFooter}>
+            <Image
+              source={APP_ICONS[resolvedTheme]}
+              style={styles.settingsFooterIcon}
+              accessibilityIgnoresInvertColors
+              alt=""
+            />
+            <Text style={styles.settingsFooterName}>Monorec</Text>
+            <Text style={styles.settingsFooterMeta}>{t('versionNumber', { version: appVersion })}</Text>
+            <Text style={styles.settingsFooterMeta}>{t('developedBy')}</Text>
           </View>
         </View>
       </ScrollView>
+
+      <OptionMenu
+        onClose={() => setMenu(null)}
+        title={t('appearance')}
+        anchor={menu?.key === 'theme' ? menu.anchor : null}
+        options={themes}
+        selected={theme}
+        onSelect={setTheme}
+      />
+      <OptionMenu
+        onClose={() => setMenu(null)}
+        title={t('language')}
+        anchor={menu?.key === 'language' ? menu.anchor : null}
+        options={languages}
+        selected={language}
+        onSelect={setLanguage}
+      />
+      <OptionMenu
+        onClose={() => setMenu(null)}
+        title={t('completedItems')}
+        anchor={menu?.key === 'shopping' ? menu.anchor : null}
+        options={shoppingBehaviors}
+        selected={shoppingCompletedBehavior}
+        onSelect={setShoppingCompletedBehavior}
+      />
     </View>
   );
 }
