@@ -31,7 +31,8 @@ function HomeContent() {
   const { width: windowWidth } = useWindowDimensions();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-  // Measured bar height: large text can make the main action taller than 60.
+  // Measured bar height (60 until the first layout): large text can make the
+  // main action taller.
   const [barHeight, setBarHeight] = useState(BOTTOM_BAR_HEIGHT);
   const { colors, fontScale, language, t } = useSettings();
   const styles = useStyles();
@@ -51,8 +52,9 @@ function HomeContent() {
   const hideBottomBar = keyboardVisible || searchFocused;
   // Keep the list geometry stable while the keyboard opens. Only the floating
   // controls disappear; changing the content inset here makes iOS visibly
-  // nudge the focused search field during its own viewport adjustment.
-  const listBottomPadding = bottomBarOffset + Math.max(BOTTOM_BAR_HEIGHT, barHeight) + LIST_TO_BAR_GAP;
+  // nudge the focused search field during its own viewport adjustment. The
+  // native keyboard height is added by the list itself (see FlatList below).
+  const listBottomPadding = bottomBarOffset + barHeight + LIST_TO_BAR_GAP;
   const barSideInset = Math.max(16, (windowWidth - COLUMN_MAX_WIDTH) / 2 + 16);
 
   useEffect(() => {
@@ -256,6 +258,9 @@ function HomeContent() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={keyboardDismissOnDrag}
+        // iOS: the list runs under the keyboard; inset it so the last card can still
+        // scroll above. Android resizes the window instead.
+        automaticallyAdjustKeyboardInsets
         ListHeaderComponent={listHeader}
         ListEmptyComponent={
           <View style={styles.homeEmpty}>

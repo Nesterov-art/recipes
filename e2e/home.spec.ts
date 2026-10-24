@@ -141,6 +141,29 @@ for (const large of [false, true]) {
   });
 }
 
+test.describe('long list with the search keyboard open', () => {
+  test.use({ viewport: { width: 320, height: 640 }, seedRecipes: [thirtyRecipes, { scope: 'test' }] });
+  test('the last recipe still scrolls fully into the reduced viewport', async ({ page }) => {
+    await openHome(page);
+    await page.getByRole('textbox', { name: 'Поиск рецептов', exact: true }).focus();
+    // Browser model of the keyboard only; the native keyboard inset needs a device check.
+    await page.setViewportSize({ width: 320, height: 360 });
+    await expect(page.getByRole('button', { name: 'Что приготовить?', exact: true })).toBeHidden();
+    const last = page.getByRole('button', { name: 'Открыть рецепт Рецепт номер 30', exact: true });
+    await expect.poll(async () => {
+      await page.evaluate(() => {
+        for (const element of document.querySelectorAll<HTMLElement>('div')) {
+          if (['auto', 'scroll'].includes(getComputedStyle(element).overflowY) && element.scrollHeight > element.clientHeight) {
+            element.scrollTop = element.scrollHeight;
+          }
+        }
+      });
+      const box = await last.boundingBox();
+      return !!box && box.y >= 0 && box.y + box.height <= 360;
+    }).toBe(true);
+  });
+});
+
 test.describe('narrow screen with large text', () => {
   test.use({ viewport: { width: 320, height: 640 }, seedRecipes: [manyRecipes, { scope: 'test' }] });
   test('home fits 320 px, moves time into metadata and keeps actions reachable', async ({ page }) => {
