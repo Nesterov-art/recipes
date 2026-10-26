@@ -25,7 +25,8 @@ test('panned iOS keyboard viewport stays filled and restores after closing', asy
     window.visualViewport!.dispatchEvent(new Event('resize'));
   });
   await expect.poll(() => page.locator('#root').evaluate(element => element.getBoundingClientRect().bottom)).toBe(540);
-  await expect(page.getByRole('button', { name: 'Добавить рецепт', exact: true })).not.toBeVisible();
+  // The tab bar would otherwise sit on top of the keyboard.
+  await expect(page.getByRole('tab', { name: 'Рецепты', exact: true })).not.toBeVisible();
   // Panning can happen after resize; a scroll event must also update the root.
   await page.evaluate(() => {
     (window as unknown as { __keyboardViewport: { offsetTop: number } }).__keyboardViewport.offsetTop = 220;
@@ -45,5 +46,5 @@ test('panned iOS keyboard viewport stays filled and restores after closing', asy
   await expect(search).not.toBeFocused();
   await expect.poll(() => page.locator('#root').evaluate(element => element.getBoundingClientRect().height)).toBe(originalHeight);
   await expect(search).toHaveValue('сыр');
-  await expect(page.getByRole('button', { name: 'Добавить рецепт', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Рецепты', exact: true })).toBeVisible();
 });

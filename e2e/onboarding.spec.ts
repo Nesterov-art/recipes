@@ -9,7 +9,7 @@ test.describe('new installation', () => {
   test.use({ freshProfile: true });
 
   test('next, back, completion and empty book persist in a new tab', async ({ page, context }) => {
-    await page.goto('/');
+    await page.goto('/recipes');
     await expect(heading(page, book)).toBeVisible();
     await page.getByRole('button', { name: 'Дальше', exact: true }).click();
     await expect(heading(page, purchases)).toBeVisible();
@@ -25,13 +25,13 @@ test.describe('new installation', () => {
     await expect.poll(() => page.evaluate(() => localStorage.getItem('app-onboarding-v1'))).toBe('completed');
     await page.close();
     const reopened = await context.newPage();
-    await reopened.goto('/');
+    await reopened.goto('/recipes');
     await expect(reopened.getByText(/Пока нет рецептов/)).toBeVisible();
     await expect(reopened.getByTestId('onboarding')).toHaveCount(0);
   });
 
   test('unfinished introduction remains available after reload despite saved empty data', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/recipes');
     await expect(heading(page, book)).toBeVisible();
     await expect.poll(() => page.evaluate(() => localStorage.getItem('recipes'))).toBe('[]');
     await page.getByRole('button', { name: 'Дальше', exact: true }).click();
@@ -64,7 +64,7 @@ test.describe('new installation', () => {
         return original.call(this, key, value);
       };
     });
-    await page.goto('/');
+    await page.goto('/recipes');
     await page.getByRole('button', { name: 'Пропустить', exact: true }).click();
     await expect(page.getByRole('alert')).toHaveText('Не удалось сохранить изменения');
     // The introduction remains mounted behind the storage error dialog.
@@ -77,7 +77,7 @@ test.describe('new installation', () => {
   for (const theme of ['light', 'dark'] as const) {
     test(`onboarding ${theme} @visual`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: theme });
-      await page.goto('/');
+      await page.goto('/recipes');
       for (const [index, title] of [book, purchases, storage].entries()) {
         await expect(heading(page, title)).toBeVisible();
         await visualReady(page);
@@ -91,14 +91,16 @@ test.describe('new installation', () => {
 test.describe('existing installations', () => {
   test.use({ seedShopping: [shopping, { scope: 'test' }] });
   test('migration skips introduction and preserves recipes, groceries and settings', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/recipes');
     await expect(page.getByRole('button', { name: 'Открыть рецепт Омлет с сыром', exact: true })).toBeVisible();
     await expect(page.getByTestId('onboarding')).toHaveCount(0);
     await expect.poll(() => page.evaluate(() => localStorage.getItem('app-onboarding-v1'))).toBe('completed');
-    await page.getByRole('button', { name: 'Настройки', exact: true }).click();
+    await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
     await page.getByRole('button', { name: 'Знакомство с приложением', exact: true }).click();
     await expect(heading(page, book)).toBeVisible();
     await page.getByRole('button', { name: 'Пропустить', exact: true }).click();
+    // Replaying the introduction returns to the Settings tab it was opened from.
+    await page.getByRole('tab', { name: 'Рецепты', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Открыть рецепт Омлет с сыром', exact: true })).toBeVisible();
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('recipes')!))).toEqual(recipes);
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('shopping-list-v1')!))).toEqual(shopping);
@@ -114,7 +116,7 @@ test.describe('accessibility and translation', () => {
     });
     await page.setViewportSize({ width: 320, height: 568 });
     await page.addInitScript(() => { document.addEventListener('DOMContentLoaded', () => { document.documentElement.style.fontSize = '20px'; }, { once: true }); });
-    await page.goto('/');
+    await page.goto('/recipes');
     for (const title of ['Your own recipe book', 'Ingredients to groceries', 'Saved on this device']) {
       const titleElement = heading(page, title);
       await expect(titleElement).toBeVisible();

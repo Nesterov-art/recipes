@@ -87,7 +87,8 @@ test('empty filtered random selection gives an accessible explanation without ch
   await openHome(page);
   await page.getByRole('button', { name: 'Любимые', exact: true }).click();
   const original = await page.evaluate(() => localStorage.getItem('recipe-book-v1'));
-  await page.getByRole('button', { name: 'Что приготовить?', exact: true }).click();
+  await page.getByRole('tab', { name: 'Выбор', exact: true }).click();
+  await page.getByRole('button', { name: 'Выбрать блюдо', exact: true }).click();
   await expect(page.getByRole('alert')).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem('recipe-book-v1'))).toBe(original);
 });
@@ -96,7 +97,7 @@ test.describe('empty English book', () => {
   test.use({ seedRecipes: [], seedSettings: { language: 'en', theme: 'dark', shoppingCompletedBehavior: 'keep' } });
   test('random choice explains that a recipe must be added', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('button', { name: 'What should I cook?', exact: true }).click();
+    await page.getByRole('button', { name: 'Pick a dish', exact: true }).click();
     await expect(page.getByRole('alert')).toContainText('Add at least one recipe');
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('recipe-book-v1')!).recipes)).toEqual([]);
   });
@@ -107,10 +108,10 @@ test.describe('textual ingredient integration', () => {
     ingredients: ['Соль — по вкусу', 'Масло — для жарки', 'Зелёный лук — 1 шт.'], steps: [] }] });
   test('manual products and recipe explanations merge, persist and match without changing compound names', async ({ page }) => {
     await openHome(page);
-    await page.getByRole('button', { name: 'Открыть список покупок', exact: true }).click();
+    await page.getByRole('tab', { name: 'Покупки', exact: true }).click();
     await addItem(page, 'Соль');
     await addItem(page, 'Масло — 200 г');
-    await page.getByRole('button', { name: 'Назад', exact: true }).click();
+    await page.getByRole('tab', { name: 'Рецепты', exact: true }).click();
     await page.getByRole('button', { name: 'Открыть рецепт Тест приправ', exact: true }).click();
     await page.getByRole('button', { name: /Добавить в покупки$/ }).click();
     await page.getByRole('button', { name: /^Добавить 3/ }).click();

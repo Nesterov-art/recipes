@@ -3,7 +3,7 @@ import { test, expect, openHome, settingRow, chooseSetting } from './fixtures';
 
 async function openSettings(page: Page) {
   await openHome(page);
-  await page.getByRole('button', { name: 'Настройки', exact: true }).click();
+  await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
   await expect(settingRow(page, 'Оформление')).toBeVisible();
 }
 
@@ -51,8 +51,11 @@ test('menu marks the current option and closes without changes on Escape or outs
 test('keyboard opens the menu, focuses the current option and selects another one', async ({ page }) => {
   await openSettings(page);
   const row = settingRow(page, 'Оформление');
-  await page.getByRole('button', { name: 'Назад', exact: true }).focus();
-  await page.keyboard.press('Tab');
+  // Settings is a tab without a Back button: reach the row with Tab alone.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  for (let step = 0; step < 10 && !(await row.evaluate(element => element === document.activeElement)); step++) {
+    await page.keyboard.press('Tab');
+  }
   await expect(row).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('radio', { name: 'Светлая', exact: true })).toBeFocused();

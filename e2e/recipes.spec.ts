@@ -38,7 +38,7 @@ test.describe('empty book', () => {
     await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('recipes') ?? '[]')[0]?.title)).toBe('Тестовый салат');
     await page.close();
     const reopened = await context.newPage();
-    await reopened.goto('/');
+    await reopened.goto('/recipes');
     await reopened.getByRole('button', { name: 'Открыть рецепт Тестовый салат', exact: true }).click();
     await expect(reopened.getByText('Огурец — 1 шт', { exact: true })).toBeVisible();
     await expect(reopened.getByText('Перемешать.', { exact: true })).toBeVisible();
@@ -52,10 +52,10 @@ test('favorite and appearance settings survive reload', async ({ page }) => {
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('recipe-meta-v1') ?? '{}')['e2e-omelet']?.favorite)).toBe(true);
   await page.reload();
   await expect(page.getByRole('button', { name: 'Убрать из любимого', exact: true })).toBeVisible();
-  await page.goto('/');
+  await page.goto('/recipes');
   await page.getByRole('button', { name: 'Любимые', exact: true }).click();
   await expect(page.getByRole('button', { name: /^Открыть рецепт / })).toHaveCount(1);
-  await page.getByRole('button', { name: 'Настройки', exact: true }).click();
+  await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
   await chooseSetting(page, 'Оформление', 'Тёмная');
   await chooseSetting(page, 'Язык', 'English');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('app-settings-v1') ?? '{}'))).toMatchObject({ theme: 'dark', language: 'en' });

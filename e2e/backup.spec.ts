@@ -11,7 +11,7 @@ async function select(page: import('@playwright/test').Page, value: unknown, nam
 }
 async function settings(page: import('@playwright/test').Page) {
   await openHome(page);
-  await page.getByRole('button', { name: 'Настройки', exact: true }).click();
+  await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
 }
 
 test('downloaded JSON contains the full book and can be imported again without duplicates', async ({ page }, testInfo) => {
@@ -49,7 +49,7 @@ test.describe('merge and persistence', () => {
     await expect(page.getByTestId('recipe-import-preview')).toHaveCount(0);
     await page.close();
     const reopened = await context.newPage();
-    await reopened.goto('/');
+    await reopened.goto('/recipes');
     await reopened.getByRole('button', { name: 'Любимые', exact: true }).click();
     await expect(reopened.getByRole('button', { name: 'Открыть рецепт Салат из файла', exact: true })).toBeVisible();
     expect(await reopened.evaluate(() => JSON.parse(localStorage.getItem('recipe-book-v1')!).recipes)).toHaveLength(3);
@@ -89,7 +89,7 @@ test('ID collision keeps both recipes and a failed save can be retried', async (
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('recipe-book-v1')!).recipes)).toEqual(recipes);
   await page.getByRole('button', { name: 'Повторить сохранение', exact: true }).click();
   await expect(page.getByTestId('recipe-import-preview')).toHaveCount(0);
-  await page.goto('/');
+  await page.goto('/recipes');
   for (const title of ['Омлет с сыром', 'Салат из файла']) await expect(page.getByRole('button', { name: `Открыть рецепт ${title}`, exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('button', { name: 'Открыть рецепт Салат из файла', exact: true })).toBeVisible();
@@ -140,7 +140,7 @@ test('canonical snapshot wins over stale mirrors; damaged snapshot falls back to
   }, { items: recipes });
   // A different page without the initialization script checks recovery from legacy data.
   const fresh = await page.context().newPage();
-  await fresh.goto('/');
+  await fresh.goto('/recipes');
   await fresh.getByRole('button', { name: 'Восстановить из предыдущей копии (оригинал сохранится)', exact: true }).click();
   await expect(fresh.getByRole('button', { name: 'Открыть рецепт Омлет с сыром', exact: true })).toBeVisible();
 });

@@ -52,6 +52,9 @@ yarn-error.*
 # Design reference images stay local and are never committed
 /docs/design/references/
 
+# Design handoff packages stay local until the rights to their assets are confirmed
+/design/
+
 # Working reports describe the local environment; kept out of the repository
 /docs/project-audit.md
 /docs/release-stability.md

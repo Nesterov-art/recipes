@@ -1,9 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
-import { FlatList, Keyboard, Platform, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import Animated, { FadeOut } from 'react-native-reanimated';
+import { FlatList, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FILTERS } from '@/constants/recipes';
@@ -14,87 +12,29 @@ import { useStyles } from '@/styles';
 import { keyboardDismissOnDrag } from '@/utils/keyboard-dismiss';
 import { categoryLabel, filterLabel, plural, todayLabel } from '@/utils/recipes';
 
-const MIN_BOTTOM_GAP = 8;
-const BOTTOM_BAR_HEIGHT = 60;
-const LIST_TO_BAR_GAP = 24;
+// The tab bar ends the screen; the last card stops this far above it.
+const LIST_BOTTOM_GAP = 24;
 // Large system text moves the cooking time into the metadata line.
 const STACKED_FONT_SCALE = 1.35;
 // Working column on tablets and desktop: 840 plus the 16 side padding.
 const COLUMN_MAX_WIDTH = 872;
 
-export default function HomeScreen() {
-  return <PaletteProvider palette={MONOREC_THEMES}><HomeContent /></PaletteProvider>;
+export default function RecipesScreen() {
+  return <PaletteProvider palette={MONOREC_THEMES}><RecipesContent /></PaletteProvider>;
 }
 
-function HomeContent() {
+function RecipesContent() {
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const [searchFocused, setSearchFocused] = useState(false);
-  // Measured bar height (60 until the first layout): large text can make the
-  // main action taller.
-  const [barHeight, setBarHeight] = useState(BOTTOM_BAR_HEIGHT);
   const { colors, fontScale, language, t } = useSettings();
   const styles = useStyles();
   const {
-    recipes, visible, query, setQuery, filter, setFilter, sort, setSort, pickRandom, recipeMeta,
+    recipes, visible, query, setQuery, filter, setFilter, sort, setSort, recipeMeta,
   } = useRecipes();
 
   const avgTime = recipes.length
     ? Math.round(recipes.reduce((sum, recipe) => sum + recipe.time, 0) / recipes.length)
     : 0;
   const stackedTime = fontScale >= STACKED_FONT_SCALE;
-
-  // iOS standalone web apps already constrain the React root above the Home
-  // Indicator. Applying the CSS safe-area value again lifts the bar twice.
-  const effectiveBottomInset = Platform.OS === 'web' ? 0 : insets.bottom;
-  const bottomBarOffset = Math.max(effectiveBottomInset, MIN_BOTTOM_GAP);
-  const hideBottomBar = keyboardVisible || searchFocused;
-  // Keep the list geometry stable while the keyboard opens. Only the floating
-  // controls disappear; changing the content inset here makes iOS visibly
-  // nudge the focused search field during its own viewport adjustment. The
-  // native keyboard height is added by the list itself (see FlatList below).
-  const listBottomPadding = bottomBarOffset + barHeight + LIST_TO_BAR_GAP;
-  const barSideInset = Math.max(16, (windowWidth - COLUMN_MAX_WIDTH) / 2 + 16);
-
-  useEffect(() => {
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
-      setKeyboardVisible(true);
-    });
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardVisible(false);
-    });
-
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (
-      Platform.OS !== 'web'
-      || !searchFocused
-      || typeof window === 'undefined'
-      || !window.visualViewport
-    ) return;
-
-    const viewport = window.visualViewport;
-    const expandedHeight = viewport.height;
-    const handleViewportResize = () => {
-      setKeyboardVisible(viewport.height < expandedHeight * 0.8);
-    };
-
-    viewport.addEventListener('resize', handleViewportResize);
-    return () => viewport.removeEventListener('resize', handleViewportResize);
-  }, [searchFocused]);
-
-  function handleRandom() {
-    const recipe = pickRandom();
-    if (recipe) {
-      router.push({ pathname: '/recipe/[id]', params: { id: recipe.id, fromRandom: 'true' } });
-    }
-  }
 
   function cycleSort() {
     setSort(sort === 'recent' ? 'asc' : sort === 'asc' ? 'desc' : 'recent');
@@ -113,22 +53,13 @@ function HomeContent() {
         </View>
         <View style={styles.homeActions}>
           <Pressable
-            onPress={() => router.push('/shopping')}
+            onPress={() => router.push('/form')}
             hitSlop={2}
             style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
             accessibilityRole="button"
-            accessibilityLabel={t('openShoppingList')}
+            accessibilityLabel={t('addRecipe')}
           >
-            <Ionicons name="basket-outline" size={22} color={colors.text} />
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/settings')}
-            hitSlop={2}
-            style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel={t('settings')}
-          >
-            <Ionicons name="settings-outline" size={22} color={colors.text} />
+            <Ionicons name="add" size={26} color={colors.text} />
           </Pressable>
         </View>
       </View>
@@ -163,13 +94,6 @@ function HomeContent() {
           style={styles.homeSearchInput}
           value={query}
           onChangeText={setQuery}
-          onFocus={() => {
-            setSearchFocused(true);
-          }}
-          onBlur={() => {
-            setSearchFocused(false);
-            if (Platform.OS === 'web') setKeyboardVisible(false);
-          }}
           placeholder={t('searchPlaceholder')}
           placeholderTextColor={colors.muted}
           selectionColor={colors.text}
@@ -253,7 +177,7 @@ function HomeContent() {
           alignSelf: 'center',
           paddingTop: 16,
           paddingHorizontal: 16,
-          paddingBottom: listBottomPadding,
+          paddingBottom: LIST_BOTTOM_GAP,
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -318,40 +242,6 @@ function HomeContent() {
           );
         }}
       />
-
-      {!hideBottomBar && (
-        <>
-          {/* The fade covers only the bar's own zone so content above it stays readable. */}
-          <LinearGradient
-            colors={[`${colors.bg}00`, colors.fadeEnd]}
-            style={[styles.bottomFade, { height: listBottomPadding }]}
-            pointerEvents="none"
-          />
-          <Animated.View
-            entering={FadeIn.duration(140)}
-            exiting={FadeOut.duration(100)}
-            style={[styles.bottomBar, { bottom: bottomBarOffset, left: barSideInset, right: barSideInset }]}
-            onLayout={event => setBarHeight(Math.ceil(event.nativeEvent.layout.height))}
-            pointerEvents="box-none"
-          >
-            <Pressable
-              onPress={handleRandom}
-              style={({ pressed }) => [styles.fab, styles.homeRandomButton, pressed && { transform: [{ scale: 0.96 }] }]}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.fabText, styles.homeRandomText]}>{t('whatToCook')}</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push('/form')}
-              style={({ pressed }) => [styles.fabSecondary, pressed && styles.pressed]}
-              accessibilityRole="button"
-              accessibilityLabel={t('addRecipe')}
-            >
-              <Ionicons name="add" size={30} color={colors.text} />
-            </Pressable>
-          </Animated.View>
-        </>
-      )}
     </View>
   );
 }

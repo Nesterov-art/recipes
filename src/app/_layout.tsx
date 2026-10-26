@@ -31,12 +31,11 @@ function RootNavigator() {
         contentStyle: { backgroundColor: colors.bg },
       }}
     >
-      <Stack.Screen name="index" />
+      {/* The four tabs; nested screens below open over them without the tab bar. */}
+      <Stack.Screen name="(tabs)" />
       <Stack.Screen name="recipe/[id]" options={{ animationTypeForReplace: 'push' }} />
-      <Stack.Screen name="shopping" />
       <Stack.Screen name="shopping-matches" />
       <Stack.Screen name="history" />
-      <Stack.Screen name="settings" />
       <Stack.Screen name="about" />
       <Stack.Screen
         name="cook"

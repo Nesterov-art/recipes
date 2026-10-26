@@ -7,7 +7,7 @@ test('export exposes the manifest, iPhone metadata and real PNG assets', async (
   await expect(page.locator('meta[name="apple-mobile-web-app-capable"]')).toHaveAttribute('content', 'yes');
   await expect(page.locator('#app-favicon')).toHaveAttribute('href', '/favicon-cookbook-light.png');
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/apple-touch-icon-cookbook-light.png');
-  await page.getByRole('button', { name: 'Настройки', exact: true }).click();
+  await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
   await chooseSetting(page, 'Оформление', 'Тёмная');
   await expect(page.locator('#app-favicon')).toHaveAttribute('href', '/favicon-cookbook-dark.png');
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/apple-touch-icon-cookbook-dark.png');

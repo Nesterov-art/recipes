@@ -1,8 +1,7 @@
-import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useRef, useState, type RefObject } from 'react';
-import { Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { Image, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { APP_ICONS } from '@/constants/app-icons';
@@ -30,7 +29,6 @@ export default function SettingsScreen() {
 function SettingsContent() {
   const insets = useSafeAreaInsets();
   const {
-    colors,
     language,
     resolvedTheme,
     setLanguage,
@@ -74,22 +72,11 @@ function SettingsContent() {
   return (
     <View style={styles.screen}>
       <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24 }}
+        // The tab bar below already covers the bottom safe area.
+        contentContainerStyle={{ paddingTop: insets.top + 24, paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.settingsContent}>
-          <View style={styles.topBar}>
-            <Pressable
-              onPress={() => router.back()}
-              hitSlop={10}
-              style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
-              accessibilityRole="button"
-              accessibilityLabel={t('back')}
-            >
-              <Ionicons name="chevron-back" size={24} color={colors.text} />
-            </Pressable>
-          </View>
-
           <Text accessibilityRole="header" style={styles.settingsTitle}>{t('settings')}</Text>
 
           <SettingsSection title={t('preferences')}>

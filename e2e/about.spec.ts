@@ -6,7 +6,7 @@ const about = (page: Page) => page.getByTestId('about-screen');
 
 async function openAbout(page: Page) {
   await openHome(page);
-  await page.getByRole('button', { name: 'Настройки', exact: true }).click();
+  await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
   await page.getByRole('button', { name: 'О Monorec', exact: true }).click();
   await expect(about(page).getByRole('heading', { name: 'О Monorec', exact: true })).toBeVisible();
 }

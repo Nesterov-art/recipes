@@ -7,14 +7,14 @@ test('browser font preference updates text automatically while old manual sizes 
   await expect.poll(size).toBe(17);
   await page.evaluate(() => { document.documentElement.style.fontSize = '24px'; });
   await expect.poll(size).toBe(26);
-  await page.getByRole('button', { name: 'Настройки', exact: true }).click();
+  await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
   await expect(page.getByText('Размер текста', { exact: true })).toHaveCount(0);
   // Preferences offer only appearance and language; text size follows the system.
   await expect(settingRow(page, 'Оформление')).toBeVisible();
   await expect(settingRow(page, 'Язык')).toBeVisible();
   for (const name of ['Мелкий', 'Обычный', 'Крупный']) await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('app-settings-v1') ?? '{}').textSize)).toBeUndefined();
-  await page.getByRole('button', { name: 'Назад', exact: true }).click();
+  await page.getByRole('tab', { name: 'Рецепты', exact: true }).click();
   await page.evaluate(() => { document.documentElement.style.fontSize = '8px'; });
   await expect.poll(size).toBe(16);
   await page.evaluate(() => { document.documentElement.style.fontSize = ''; });

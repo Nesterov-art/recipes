@@ -2,7 +2,7 @@ import { test, expect, openHome, addItem, rows, expectOrder, shopping, revealSho
 
 test('manual add, compatible quantity merge, edit, check and clear persist', async ({ page, context }) => {
   await openHome(page);
-  await page.getByRole('button', { name: 'Открыть список покупок' }).click();
+  await page.getByRole('tab', { name: 'Покупки', exact: true }).click();
   await expect(page.getByText('Список покупок пуст', { exact: true })).toBeVisible();
   await addItem(page, 'Молоко — 500 мл');
   await addItem(page, ' молоко — 1 л ');
@@ -43,7 +43,7 @@ test('selected recipe ingredients reach shopping list and recipe matching', asyn
   await page.getByRole('checkbox').nth(1).click();
   await page.getByRole('button', { name: 'Добавить 1 позицию', exact: true }).click();
   await page.getByRole('button', { name: 'Назад', exact: true }).click();
-  await page.getByRole('button', { name: 'Открыть список покупок', exact: true }).click();
+  await page.getByRole('tab', { name: 'Покупки', exact: true }).click();
   await expectOrder(page, ['Яйца — 2 шт.']);
   await page.getByRole('button', { name: 'Что можно приготовить?', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Открыть рецепт Омлет с сыром', exact: true })).toBeVisible();
@@ -54,10 +54,9 @@ test.describe('completed item preference', () => {
   test.use({ seedShopping: [shopping, { scope: 'test' }] });
   test('keep in place is saved and used after reopening shopping', async ({ page }) => {
     await openHome(page);
-    await page.getByRole('button', { name: 'Настройки', exact: true }).click();
+    await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
     await chooseSetting(page, 'Купленные', 'Оставлять на месте');
-    await page.getByRole('button', { name: 'Назад', exact: true }).click();
-    await page.getByRole('button', { name: 'Открыть список покупок', exact: true }).click();
+    await page.getByRole('tab', { name: 'Покупки', exact: true }).click();
     await rows(page).first().getByRole('checkbox').click();
     await expectOrder(page, shopping.map(item => item.text));
     await expect(rows(page).first().getByRole('checkbox')).toBeChecked();

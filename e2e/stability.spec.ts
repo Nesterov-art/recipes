@@ -23,8 +23,8 @@ test.describe('long content and fixed actions', () => {
   test.use({ seedRecipes: [[longRecipe, { ...longRecipe, id: 'other', title: 'Другой длинный рецепт' }], { scope: 'test' }] });
 
   test('random recipe final content can be scrolled fully above Another option', async ({ page }) => {
-    await openHome(page);
-    await page.getByRole('button', { name: 'Что приготовить?', exact: true }).click();
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Выбрать блюдо', exact: true }).click();
     const another = page.getByRole('button', { name: 'Другой вариант', exact: true });
     await expect(another).toBeVisible();
     await scrollToEnd(page);
@@ -39,7 +39,7 @@ test.describe('long content and fixed actions', () => {
     await another.click();
     await expect(another).toBeVisible();
     await page.getByRole('button', { name: 'Назад', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Добавить рецепт', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Выбрать блюдо', exact: true })).toBeVisible();
   });
 
   test('form save remains reachable when web keyboard reduces the viewport', async ({ page }) => {
@@ -62,9 +62,9 @@ test.describe('long content and fixed actions', () => {
     }).toBe(true);
     await save.click();
     await page.setViewportSize(original);
-    // Home stays mounted under the form, so the new card alone does not prove the
+    // The book stays mounted under the form, so the new card alone does not prove the
     // form closed. Reloading before navigation finished would reload /form.
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/recipes$/);
     await expect(page.getByRole('button', { name: 'Открыть рецепт Проверка клавиатуры', exact: true })).toBeVisible();
     await page.reload();
     await expect(page.getByRole('button', { name: 'Открыть рецепт Проверка клавиатуры', exact: true })).toBeVisible();
@@ -75,7 +75,7 @@ test.describe('long shopping list', () => {
   test.use({ seedShopping: [longShopping, { scope: 'test' }] });
   test('last card is fully reachable and navigation preserves the list', async ({ page }) => {
     await openHome(page);
-    await page.getByRole('button', { name: 'Открыть список покупок', exact: true }).click();
+    await page.getByRole('tab', { name: 'Покупки', exact: true }).click();
     await scrollToEnd(page);
     const last = page.getByRole('checkbox', { name: 'Продукт 45', exact: true });
     await expect(last).toBeVisible();
@@ -85,8 +85,8 @@ test.describe('long shopping list', () => {
       return !!box && box.y >= 0 && box.y + box.height <= page.viewportSize()!.height;
     }).toBe(true);
     await page.goBack();
-    await expect(page.getByRole('button', { name: 'Открыть список покупок', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Открыть список покупок', exact: true }).click();
+    await expect(page.getByRole('tab', { name: 'Покупки', exact: true })).toBeVisible();
+    await page.getByRole('tab', { name: 'Покупки', exact: true }).click();
     await scrollToEnd(page);
     await expect(page.getByRole('checkbox', { name: 'Продукт 45', exact: true })).toBeVisible();
     await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('shopping-list-v1')!).length)).toBe(45);

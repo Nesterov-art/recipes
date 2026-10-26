@@ -240,18 +240,7 @@ export default function ShoppingScreen() {
 
   const header = (
     <View>
-      <View style={styles.topBar}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={10}
-          style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
-          accessibilityRole="button"
-          accessibilityLabel={t('back')}
-        >
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
-        </Pressable>
-      </View>
-      <Text style={styles.bigTitle}>{t('shoppingList')}</Text>
+      <Text accessibilityRole="header" style={styles.bigTitle}>{t('shoppingList')}</Text>
       <View style={styles.shoppingInputRow}>
         <TextInput
           value={value}
@@ -326,9 +315,10 @@ export default function ShoppingScreen() {
           </Pressable>
         ) : undefined}
         contentContainerStyle={{
-          paddingTop: insets.top + 8,
+          paddingTop: insets.top + 24,
           paddingHorizontal: 16,
-          paddingBottom: insets.bottom + 40,
+          // The tab bar below already covers the bottom safe area.
+          paddingBottom: 40,
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"

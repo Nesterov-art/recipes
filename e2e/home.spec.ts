@@ -99,7 +99,7 @@ test('search keeps its algorithm, can be cleared and explains an empty result', 
 test.describe('English, dark theme', () => {
   test.use({ seedSettings: { theme: 'dark', language: 'en', shoppingCompletedBehavior: 'moveDown' } });
   test('home is translated and uses the dark Monorec palette', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/recipes');
     await expect(page.getByRole('heading', { name: 'Monorec', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'All recipes', exact: true })).toBeVisible();
     const card = page.getByRole('button', { name: 'Open recipe Омлет с сыром', exact: true });
@@ -118,7 +118,7 @@ const thirtyRecipes: Recipe[] = Array.from({ length: 30 }, (_, index) => ({
 for (const large of [false, true]) {
   test.describe(`long list, ${large ? 'large' : 'standard'} text`, () => {
     test.use({ viewport: { width: 320, height: 640 }, seedRecipes: [thirtyRecipes, { scope: 'test' }] });
-    test('the last recipe ends fully above the fixed bar and can be tapped', async ({ page }) => {
+    test('the last recipe ends fully above the tab bar and can be tapped', async ({ page }) => {
       await openHome(page);
       if (large) await page.evaluate(() => { document.documentElement.style.fontSize = '24px'; });
       const last = page.getByRole('button', { name: 'Открыть рецепт Рецепт номер 30', exact: true });
@@ -132,7 +132,7 @@ for (const large of [false, true]) {
           }
         });
         const box = await last.boundingBox();
-        const bar = await page.getByRole('button', { name: 'Что приготовить?', exact: true }).boundingBox();
+        const bar = await page.getByRole('tab', { name: 'Рецепты', exact: true }).boundingBox();
         return !!box && !!bar && box.y >= 0 && box.y + box.height <= bar.y;
       }).toBe(true);
       await last.click();
@@ -148,7 +148,7 @@ test.describe('long list with the search keyboard open', () => {
     await page.getByRole('textbox', { name: 'Поиск рецептов', exact: true }).focus();
     // Browser model of the keyboard only; the native keyboard inset needs a device check.
     await page.setViewportSize({ width: 320, height: 360 });
-    await expect(page.getByRole('button', { name: 'Что приготовить?', exact: true })).toBeHidden();
+    await expect(page.getByRole('tab', { name: 'Рецепты', exact: true })).toBeHidden();
     const last = page.getByRole('button', { name: 'Открыть рецепт Рецепт номер 30', exact: true });
     await expect.poll(async () => {
       await page.evaluate(() => {
@@ -176,14 +176,12 @@ test.describe('narrow screen with large text', () => {
     const heading = page.getByRole('heading', { name: 'Monorec', exact: true });
     const headingLine = await heading.evaluate(element => parseFloat(getComputedStyle(element).lineHeight));
     expect((await heading.boundingBox())!.height).toBeLessThanOrEqual(headingLine + 1);
-    // The main action grows with its text instead of letting it overflow.
-    const random = page.getByRole('button', { name: 'Что приготовить?', exact: true });
-    const label = await random.getByText('Что приготовить?', { exact: true }).boundingBox();
-    const button = await random.boundingBox();
-    expect(label!.y).toBeGreaterThanOrEqual(button!.y);
-    expect(label!.y + label!.height).toBeLessThanOrEqual(button!.y + button!.height);
-    for (const name of ['Открыть список покупок', 'Настройки', 'Изменить сортировку', 'Что приготовить?', 'Добавить рецепт']) {
-      const box = (await page.getByRole('button', { name, exact: true }).boundingBox())!;
+    for (const target of [
+      page.getByRole('button', { name: 'Изменить сортировку', exact: true }),
+      page.getByRole('button', { name: 'Добавить рецепт', exact: true }),
+      ...['Выбор', 'Рецепты', 'Покупки', 'Настройки'].map(name => page.getByRole('tab', { name, exact: true })),
+    ]) {
+      const box = (await target.boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(320);
       expect(box.height).toBeGreaterThanOrEqual(36);

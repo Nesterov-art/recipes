@@ -44,9 +44,10 @@ export const test = base.extend<Options & { checkPageErrors: void }>({
 
 export { expect };
 
+// Opens the recipe book, the former home screen; "/" is now the Choice tab.
 export async function openHome(page: Page) {
-  await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Открыть список покупок', exact: true })).toBeVisible();
+  await page.goto('/recipes');
+  await expect(page.getByRole('button', { name: 'Добавить рецепт', exact: true })).toBeVisible();
 }
 
 export async function addItem(page: Page, text: string) {

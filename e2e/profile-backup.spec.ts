@@ -18,7 +18,7 @@ const file = () => ({ format: 'recipes-profile-backup', version: 1, exportedAt: 
 const normalized = () => ({ ...profile, recipeMeta: { 'backup-recipe': { ...profile.recipeMeta['backup-recipe'], cookings: [...profile.recipeMeta['backup-recipe'].cookings].reverse() } } });
 const rawProfile = (page: import('@playwright/test').Page) => page.evaluate(keys => Object.fromEntries(keys.map(key => [key, localStorage.getItem(key)])), keys);
 async function settings(page: import('@playwright/test').Page) {
-  await openHome(page); await page.getByRole('button', { name: 'Настройки', exact: true }).click();
+  await openHome(page); await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
 }
 async function select(page: import('@playwright/test').Page, value: unknown, restore = true) {
   const chooser = page.waitForEvent('filechooser');
@@ -60,7 +60,7 @@ test('restore preview/cancel changes nothing; confirmed and repeated restore nev
   await page.reload();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('recipe-book-v1')!))).toEqual({ recipes: profile.recipes, recipeMeta: normalized().recipeMeta });
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('app-settings-v1')!))).toEqual(profile.settings);
-  await page.goto('/'); await page.getByRole('button', { name: 'Открыть рецепт Из полной копии', exact: true }).click();
+  await page.goto('/recipes'); await page.getByRole('button', { name: 'Открыть рецепт Из полной копии', exact: true }).click();
   await expect(page.getByText('Последняя заметка', { exact: true })).toBeVisible();
 });
 

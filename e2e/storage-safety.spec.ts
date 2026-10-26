@@ -19,7 +19,7 @@ test('P0: a legacy read failure cannot erase a valid canonical snapshot', async 
   await expect(page.getByRole('button', { name: 'Открыть рецепт Омлет с сыром', exact: true })).toBeVisible();
   expect(await page.evaluate(key => localStorage.getItem(key), bookKey)).toBe(rawBook);
   // Restore access and confirm the original legacy payload was not overwritten.
-  const fresh = await page.context().newPage(); await fresh.goto('/');
+  const fresh = await page.context().newPage(); await fresh.goto('/recipes');
   expect(await fresh.evaluate(key => localStorage.getItem(key), bookKey)).toBe(rawBook);
   await fresh.close();
 });
@@ -32,7 +32,7 @@ test('P0: damaged canonical snapshot without fallback survives reload and Retry'
     localStorage.setItem('recipe-book-v1', '{broken-but-preserve-me');
     localStorage.removeItem('recipes'); localStorage.removeItem('recipe-meta-v1');
   });
-  await page.goto('/');
+  await page.goto('/recipes');
   await expect(page.getByRole('alert')).toHaveText('Не удалось открыть данные');
   await page.getByRole('button', { name: 'Повторить чтение', exact: true }).click();
   expect(await page.evaluate(key => localStorage.getItem(key), bookKey)).toBe('{broken-but-preserve-me');
@@ -45,7 +45,7 @@ test('P0: damaged shopping-list-v1 is not migrated into an empty list', async ({
     localStorage.setItem('app-onboarding-v1', 'completed');
     localStorage.setItem('shopping-list-v1', '["Лук", {"broken":true}]');
   });
-  await page.goto('/');
+  await page.goto('/recipes');
   await expect(page.getByRole('alert')).toHaveText('Не удалось открыть данные');
   await page.getByRole('button', { name: 'Повторить чтение', exact: true }).click();
   expect(await page.evaluate(() => localStorage.getItem('shopping-list-v1'))).toBe('["Лук", {"broken":true}]');
@@ -60,7 +60,7 @@ test('explicit legacy recovery preserves damaged original in a recovery archive'
     localStorage.setItem('app-onboarding-v1', 'completed');
     localStorage.setItem('recipe-book-v1', 'damaged original');
   });
-  await page.goto('/');
+  await page.goto('/recipes');
   await expect(page.getByRole('alert')).toBeVisible();
   expect(await page.evaluate(key => localStorage.getItem(key), bookKey)).toBe('damaged original');
   await page.getByRole('button', { name: 'Восстановить из предыдущей копии (оригинал сохранится)', exact: true }).click();
@@ -77,7 +77,7 @@ test('unknown format version cannot be migrated over using legacy data', async (
   await page.addInitScript(raw => {
     localStorage.setItem('app-onboarding-v1', 'completed'); localStorage.setItem('recipe-book-v1', raw);
   }, raw);
-  await page.goto('/'); await expect(page.getByRole('alert')).toHaveText('Эта версия данных пока не поддерживается');
+  await page.goto('/recipes'); await expect(page.getByRole('alert')).toHaveText('Эта версия данных пока не поддерживается');
   expect(await page.evaluate(key => localStorage.getItem(key), bookKey)).toBe(raw);
 });
 
@@ -90,7 +90,7 @@ test('failed shopping write keeps draft; retry saves once and clears it', async 
       return original.call(this, key, value);
     };
   });
-  await openHome(page); await page.getByRole('button', { name: 'Открыть список покупок', exact: true }).click();
+  await openHome(page); await page.getByRole('tab', { name: 'Покупки', exact: true }).click();
   await page.getByPlaceholder('Добавить продукт', { exact: true }).fill('Яйца — 2 шт.');
   await page.getByRole('button', { name: 'Добавить продукт', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('Не удалось сохранить изменения');
@@ -112,11 +112,11 @@ for (const key of ['app-settings-v1', 'app-onboarding-v1']) {
         return original.call(this, name);
       };
     }, key);
-    await page.goto('/'); await expect(page.getByRole('alert')).toHaveText('Не удалось открыть данные');
+    await page.goto('/recipes'); await expect(page.getByRole('alert')).toHaveText('Не удалось открыть данные');
     await page.evaluate(() => sessionStorage.setItem('storage-test-allow-read', 'yes'));
     expect(await page.evaluate(key => localStorage.getItem(key), key)).not.toBeNull();
     await page.getByRole('button', { name: 'Повторить чтение', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Открыть список покупок', exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Покупки', exact: true })).toBeVisible();
   });
 }
 
@@ -175,7 +175,7 @@ test('failed settings write does not change saved preferences and can be retried
       return original.call(this, key, value);
     };
   });
-  await openHome(page); await page.getByRole('button', { name: 'Настройки', exact: true }).click();
+  await openHome(page); await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
   await chooseSetting(page, 'Оформление', 'Тёмная');
   await expect(page.getByRole('alert')).toHaveText('Не удалось сохранить изменения');
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('app-settings-v1')!).theme)).toBe('light');
@@ -190,7 +190,7 @@ test('recovery download preserves exact damaged payload without resetting storag
     localStorage.setItem('app-onboarding-v1', 'completed');
     localStorage.setItem('shopping-list-v1', 'damaged \n original');
   });
-  await page.goto('/'); await expect(page.getByRole('alert')).toBeVisible();
+  await page.goto('/recipes'); await expect(page.getByRole('alert')).toBeVisible();
   const downloaded = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Сохранить исходные данные в файл', exact: true }).click();
   const file = await downloaded; const path = testInfo.outputPath('recovery.json'); await file.saveAs(path);
