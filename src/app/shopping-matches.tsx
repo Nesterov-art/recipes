@@ -4,8 +4,9 @@ import { useMemo } from 'react';
 import { FlatList, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { MONOREC_THEMES } from '@/constants/theme';
 import { useRecipes } from '@/context/recipes-context';
-import { useSettings } from '@/context/settings-context';
+import { PaletteProvider, useSettings } from '@/context/settings-context';
 import { useShopping } from '@/context/shopping-context';
 import { useStyles } from '@/styles';
 import {
@@ -13,7 +14,14 @@ import {
   type RecipeShoppingMatch,
 } from '@/utils/recipe-matches';
 
+// Working column on tablets and desktop, as in Settings.
+const COLUMN_MAX_WIDTH = 680;
+
 export default function ShoppingMatchesScreen() {
+  return <PaletteProvider palette={MONOREC_THEMES}><ShoppingMatchesContent /></PaletteProvider>;
+}
+
+function ShoppingMatchesContent() {
   const insets = useSafeAreaInsets();
   const { colors, t } = useSettings();
   const { recipes } = useRecipes();
@@ -33,6 +41,7 @@ export default function ShoppingMatchesScreen() {
   function renderMatch({ item: match, index }: { item: RecipeShoppingMatch; index: number }) {
     const percentage = Math.round(match.matchRatio * 100);
     const progressWidth = `${percentage}%` as `${number}%`;
+    const complete = match.missingIngredients.length === 0;
 
     return (
       <Pressable
@@ -59,13 +68,16 @@ export default function ShoppingMatchesScreen() {
             </Text>
           </View>
           <Text style={styles.recipeMatchPercent}>{percentage}%</Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          <Ionicons name="chevron-forward" size={16} color={colors.muted} />
         </View>
         <View style={styles.recipeMatchProgress}>
           <View style={[styles.recipeMatchProgressFill, { width: progressWidth }]} />
         </View>
-        {match.missingIngredients.length === 0 ? (
-          <Text style={styles.recipeMatchComplete}>{t('allIngredientsListed')}</Text>
+        {complete ? (
+          <View style={styles.recipeMatchCompleteRow}>
+            <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+            <Text style={styles.recipeMatchComplete}>{t('allIngredientsListed')}</Text>
+          </View>
         ) : (
           <Text style={styles.recipeMatchMissing}>
             <Text style={styles.recipeMatchMissingLabel}>{t('missingIngredients')}: </Text>
@@ -83,7 +95,7 @@ export default function ShoppingMatchesScreen() {
         keyExtractor={(match) => match.recipe.id}
         renderItem={renderMatch}
         ListHeaderComponent={(
-          <View>
+          <View style={styles.recipeMatchHeading}>
             <View style={styles.topBar}>
               <Pressable
                 onPress={() => router.back()}
@@ -95,15 +107,22 @@ export default function ShoppingMatchesScreen() {
                 <Ionicons name="chevron-back" size={24} color={colors.text} />
               </Pressable>
             </View>
-            <Text style={styles.bigTitle}>{t('whatCanCook')}</Text>
-            <Text style={[styles.subtitle, { marginTop: 8, marginBottom: 24 }]}>
-              {t('shoppingMatchesHint')}
-            </Text>
+            <Text accessibilityRole="header" style={styles.settingsTitle}>{t('whatCanCook')}</Text>
+            <Text style={styles.settingsHint}>{t('shoppingMatchesHint')}</Text>
           </View>
         )}
-        ListEmptyComponent={<Text style={styles.empty}>{emptyMessage()}</Text>}
+        ListEmptyComponent={(
+          <View style={styles.homeEmpty}>
+            <Ionicons name="restaurant-outline" size={28} color={colors.muted} />
+            <Text style={styles.homeEmptyTitle}>{t('shoppingMatchesEmptyTitle')}</Text>
+            <Text style={styles.homeEmptyText}>{emptyMessage()}</Text>
+          </View>
+        )}
         contentContainerStyle={{
           flexGrow: 1,
+          width: '100%',
+          maxWidth: COLUMN_MAX_WIDTH,
+          alignSelf: 'center',
           paddingTop: insets.top + 8,
           paddingHorizontal: 16,
           paddingBottom: insets.bottom + 40,

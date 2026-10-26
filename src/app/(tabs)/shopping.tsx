@@ -1,17 +1,25 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, Text, TextInput, View } from 'react-native';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, Pressable, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { Pressable as GesturePressable } from 'react-native-gesture-handler';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
 import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Animated, {
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useSharedValue,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useSettings } from '@/context/settings-context';
+import { MONOREC_THEMES } from '@/constants/theme';
+import { PaletteProvider, useSettings } from '@/context/settings-context';
 import { useShopping } from '@/context/shopping-context';
 import { useStyles } from '@/styles';
+import { commitDroppedOrder, HOLD_DROPPED_ORDER } from '@/utils/drop-commit';
 import { keyboardDismissOnDrag } from '@/utils/keyboard-dismiss';
 import { orderShoppingItems, type ShoppingItem } from '@/utils/shopping';
 
@@ -24,9 +32,35 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
   document.head.appendChild(style);
 }
 
+// Large text moves the amount under the product name.
+const STACKED_FONT_SCALE = 1.35;
+// Working column on tablets and desktop, as in Settings.
+const COLUMN_MAX_WIDTH = 680;
+
+// Display only: the stored text is "<name> — <amount or note>". Show the amount
+// apart from the name; anything else is shown as stored.
+function splitItemText(item: ShoppingItem) {
+  const prefix = `${item.name} — `;
+  return item.text.startsWith(prefix)
+    ? { title: item.name, detail: item.text.slice(prefix.length) }
+    : { title: item.text, detail: '' };
+}
+
+// Mirrors the Swipeable's own offset into the card, so the card can make room for
+// the actions instead of sliding its name and amount out of sight.
+function OffsetMirror({ from, to }: { from: SharedValue<number>; to: SharedValue<number> }) {
+  useAnimatedReaction(() => from.get(), (value) => { to.set(value); });
+  return null;
+}
+
 export default function ShoppingScreen() {
+  return <PaletteProvider palette={MONOREC_THEMES}><ShoppingContent /></PaletteProvider>;
+}
+
+function ShoppingContent() {
   const insets = useSafeAreaInsets();
-  const { colors, shoppingCompletedBehavior, t } = useSettings();
+  const { fontScale: systemFontScale } = useWindowDimensions();
+  const { colors, fontScale, shoppingCompletedBehavior, t } = useSettings();
   const {
     addItem,
     clearCompleted,
@@ -41,15 +75,27 @@ export default function ShoppingScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  // The open card, readable without waiting for a render.
+  const openIdRef = useRef<string | null>(null);
   const touchDragActive = useRef(false);
   const swipeableRefs = useRef(new Map<string, SwipeableMethods>());
   const suppressRowActionsUntil = useRef(0);
+  // The card a touch started on; a touch anywhere else closes open actions.
+  const touchedCardId = useRef<string | null>(null);
   const saving = useRef(false);
   const hasCompleted = items.some((item) => item.checked);
-  const displayedItems = useMemo(
+  const allCompleted = items.length > 0 && items.every((item) => item.checked);
+  const canAdd = value.trim() !== '' && draggingId === null;
+  const stackedDetail = fontScale * systemFontScale >= STACKED_FONT_SCALE;
+  // Web only: the dropped order, shown until the regular save publishes it (or fails
+  // and the saved order returns), so the list does not flash back on release.
+  const [droppedOrder, setDroppedOrder] = useState<ShoppingItem[] | null>(null);
+  const savedOrder = useMemo(
     () => orderShoppingItems(items, shoppingCompletedBehavior === 'moveDown'),
     [items, shoppingCompletedBehavior],
   );
+  const displayedItems = droppedOrder ?? savedOrder;
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -71,176 +117,117 @@ export default function ShoppingScreen() {
     };
   }, []);
 
-  function closeSwipeables(exceptId?: string) {
-    swipeableRefs.current.forEach((swipeable, id) => {
-      if (id !== exceptId) swipeable.close();
-    });
+  // Only the open card is closed: closing a closed Swipeable still reports a close,
+  // and those reports would re-render the list in the middle of a drag.
+  const closeOpenCard = useCallback((exceptId?: string | null) => {
+    const open = openIdRef.current;
+    if (open !== null && open !== exceptId) swipeableRefs.current.get(open)?.close();
+  }, []);
+
+  const setCardRef = useCallback((id: string, swipeable: SwipeableMethods | null) => {
+    if (swipeable) swipeableRefs.current.set(id, swipeable);
+    else swipeableRefs.current.delete(id);
+  }, []);
+
+  // Cards mark their touches first (events bubble from the card to the screen).
+  const markCardTouch = useCallback((id: string) => { touchedCardId.current = id; }, []);
+  function handleScreenTouch() {
+    closeOpenCard(touchedCardId.current);
+    touchedCardId.current = null;
   }
 
+  const handleWillOpen = useCallback((id: string) => {
+    closeOpenCard(id);
+    openIdRef.current = id;
+    setOpenId(id);
+  }, [closeOpenCard]);
+
+  const handleWillClose = useCallback((id: string) => {
+    if (openIdRef.current !== id) return;
+    openIdRef.current = null;
+    setOpenId(null);
+  }, []);
+
   async function handleAdd() {
-    if (draggingId || saving.current) return;
+    // An empty field has nothing to add; the button is disabled for it as well.
+    if (!canAdd || saving.current) return;
     saving.current = true;
     const submitted = value;
     await addItem(submitted, () => setValue(current => current === submitted ? '' : current));
     saving.current = false;
   }
 
-  function startEditing(id: string, text: string) {
-    if (draggingId) return;
-    closeSwipeables(id);
-    // Restore the full card before autoFocus can make Safari pan to the field.
-    swipeableRefs.current.get(id)?.reset();
-    setEditingId(id);
-    setEditingValue(text);
-  }
-
-  function cancelEditing() {
+  const cancelEditing = useCallback(() => {
     setEditingId(null);
     setEditingValue('');
-  }
+  }, []);
 
-  async function saveEditing() {
+  const handleEdit = useCallback((id: string, text: string) => {
+    if (touchDragActive.current || Date.now() < suppressRowActionsUntil.current) return;
+    closeOpenCard(id);
+    // Restore the full card before autoFocus can make Safari pan to the field.
+    swipeableRefs.current.get(id)?.reset();
+    openIdRef.current = null;
+    setOpenId(null);
+    setEditingId(id);
+    setEditingValue(text);
+  }, [closeOpenCard]);
+
+  const handleDelete = useCallback((id: string) => {
+    // Keep the release that confirmed deletion from landing on the
+    // actions of the row that immediately moves into its place.
+    suppressRowActionsUntil.current = Date.now() + 500;
+    cancelEditing();
+    swipeableRefs.current.get(id)?.close();
+    openIdRef.current = null;
+    setOpenId(null);
+    requestAnimationFrame(() => removeItem(id));
+  }, [cancelEditing, removeItem]);
+
+  const handleToggle = useCallback((id: string) => {
+    if (Date.now() >= suppressRowActionsUntil.current) toggleItem(id);
+  }, [toggleItem]);
+
+  const saveEditing = useCallback(async () => {
     if (!editingId || saving.current) return;
     saving.current = true;
     await updateItem(editingId, editingValue, cancelEditing);
     saving.current = false;
-  }
+  }, [cancelEditing, editingId, editingValue, updateItem]);
 
-  function renderItem({ item, drag, isActive }: RenderItemParams<ShoppingItem>) {
-    const interactionsDisabled = draggingId !== null;
-    const gesturesDisabled = interactionsDisabled || editingId !== null;
+  // Stable while a card is dragged, so only the lifted card re-renders: re-rendering
+  // every card under a native drag makes their animated offsets flicker.
+  const renderItem = useCallback(({ item, drag, isActive }: RenderItemParams<ShoppingItem>) => (
+    <ShoppingCard
+      item={item}
+      drag={drag}
+      isActive={isActive}
+      open={openId === item.id}
+      editing={editingId === item.id}
+      editingValue={editingId === item.id ? editingValue : ''}
+      anyEditing={editingId !== null}
+      stackedDetail={stackedDetail}
+      onTouch={markCardTouch}
+      setRef={setCardRef}
+      onWillOpen={handleWillOpen}
+      onWillClose={handleWillClose}
+      onToggle={handleToggle}
+      onEdit={handleEdit}
+      onDelete={handleDelete}
+      onEditingValue={setEditingValue}
+      onSaveEditing={saveEditing}
+      onCancelEditing={cancelEditing}
+    />
+  ), [
+    cancelEditing, editingId, editingValue, handleDelete, handleEdit, handleToggle, handleWillClose,
+    handleWillOpen, markCardTouch, openId, saveEditing, setCardRef, stackedDetail,
+  ]);
 
-    return (
-      <ReanimatedSwipeable
-        ref={(swipeable) => {
-          if (swipeable) swipeableRefs.current.set(item.id, swipeable);
-          else swipeableRefs.current.delete(item.id);
-        }}
-        testID="shopping-swipeable"
-        enabled={!gesturesDisabled && !isActive}
-        friction={1.5}
-        rightThreshold={48}
-        // Gesture Handler 3 takes a signed offset: -18 matches the former 18 px edge offset.
-        dragOffsetFromRight={-18}
-        overshootRight={false}
-        containerStyle={styles.shoppingCard}
-        childrenContainerStyle={styles.shoppingSwipeContent}
-        onSwipeableWillOpen={() => closeSwipeables(item.id)}
-        renderRightActions={(_progress, _translation, swipeable) => (
-          <View style={styles.shoppingSwipeActions} testID="shopping-swipe-actions">
-          <GesturePressable
-            onPress={() => {
-              if (Date.now() >= suppressRowActionsUntil.current) startEditing(item.id, item.text);
-            }}
-            disabled={gesturesDisabled}
-            style={({ pressed }) => [styles.shoppingSwipeAction, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel={t('edit')}
-          >
-            <View style={[styles.shoppingSwipeActionCircle, styles.shoppingSwipeEditCircle]}>
-              <Ionicons name="pencil-outline" size={21} color={colors.text} />
-            </View>
-            <Text style={styles.shoppingSwipeActionText}>{t('edit')}</Text>
-          </GesturePressable>
-          <GesturePressable
-            disabled={gesturesDisabled}
-            onPress={() => {
-              // Keep the release that confirmed deletion from landing on the
-              // actions of the row that immediately moves into its place.
-              suppressRowActionsUntil.current = Date.now() + 500;
-              cancelEditing();
-              swipeable.close();
-              requestAnimationFrame(() => removeItem(item.id));
-            }}
-            style={({ pressed }) => [styles.shoppingSwipeAction, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel={t('delete')}
-          >
-            <View style={[styles.shoppingSwipeActionCircle, styles.shoppingSwipeDeleteCircle]}>
-              <Ionicons name="trash-outline" size={23} color="#FFFFFF" />
-            </View>
-            <Text style={styles.shoppingSwipeActionText}>{t('delete')}</Text>
-          </GesturePressable>
-          </View>
-        )}
-      >
-        <View style={styles.shoppingRow} testID="shopping-row">
-          {editingId === item.id ? (
-            <View style={styles.shoppingEditRow}>
-              <TextInput
-                autoFocus
-                value={editingValue}
-                onChangeText={setEditingValue}
-                onSubmitEditing={saveEditing}
-                placeholder={t('shoppingPlaceholder')}
-                placeholderTextColor={colors.muted}
-                selectionColor={colors.text}
-                returnKeyType="done"
-                style={styles.shoppingEditInput}
-              />
-              <Pressable
-                onPress={saveEditing}
-                hitSlop={6}
-                style={({ pressed }) => [styles.shoppingEditButton, pressed && styles.pressed]}
-                accessibilityRole="button"
-                accessibilityLabel={t('save')}
-              >
-                <Ionicons name="checkmark" size={21} color={colors.text} />
-              </Pressable>
-              <Pressable
-                onPress={cancelEditing}
-                hitSlop={6}
-                style={({ pressed }) => [styles.shoppingEditButton, pressed && styles.pressed]}
-                accessibilityRole="button"
-                accessibilityLabel={t('cancel')}
-              >
-                <Ionicons name="close" size={21} color={colors.muted} />
-              </Pressable>
-            </View>
-          ) : (
-            <>
-              <Pressable
-                onPress={() => {
-                  if (Date.now() >= suppressRowActionsUntil.current) toggleItem(item.id);
-                }}
-                disabled={interactionsDisabled}
-                hitSlop={6}
-                style={({ pressed }) => [styles.shoppingCheckbox, pressed && styles.pressed]}
-                accessibilityRole="checkbox"
-                accessibilityLabel={item.text}
-                aria-checked={item.checked}
-                accessibilityState={{ checked: item.checked, disabled: interactionsDisabled }}
-              >
-                <Ionicons
-                  name={item.checked ? 'checkmark-circle' : 'ellipse-outline'}
-                  size={23}
-                  color={item.checked ? colors.text : colors.muted}
-                />
-              </Pressable>
-              <Pressable
-                testID="shopping-drag"
-                onLongPress={() => { if (!draggingId) drag(); }}
-                delayLongPress={350}
-                disabled={editingId !== null || (interactionsDisabled && !isActive)}
-                style={({ pressed }) => [styles.shoppingDragArea, pressed && styles.pressed]}
-                accessibilityRole="button"
-                accessibilityLabel={item.text}
-                accessibilityHint={t('shoppingItemGestureHint')}
-              >
-                <Text style={[styles.shoppingText, item.checked && styles.shoppingTextChecked]}>
-                  {item.text}
-                </Text>
-              </Pressable>
-            </>
-          )}
-        </View>
-      </ReanimatedSwipeable>
-    );
-  }
-
+  // The gap above the first card belongs to the header: every list cell then has the
+  // same height, which the drag needs to move the other cards without jumps.
   const header = (
-    <View>
-      <Text accessibilityRole="header" style={styles.bigTitle}>{t('shoppingList')}</Text>
+    <View style={styles.shoppingHeader}>
+      <Text accessibilityRole="header" style={styles.settingsTitle}>{t('shoppingList')}</Text>
       <View style={styles.shoppingInputRow}>
         <TextInput
           value={value}
@@ -254,30 +241,42 @@ export default function ShoppingScreen() {
         />
         <Pressable
           onPress={handleAdd}
-          disabled={draggingId !== null}
-          style={({ pressed }) => [styles.addItemButton, pressed && styles.pressed]}
+          disabled={!canAdd}
+          style={({ pressed }) => [
+            styles.addItemButton,
+            !canAdd && styles.addItemButtonDisabled,
+            pressed && styles.pressed,
+          ]}
           accessibilityRole="button"
           accessibilityLabel={t('addItem')}
+          accessibilityState={{ disabled: !canAdd }}
         >
-          <Ionicons name="add" size={26} color={colors.accentText} />
+          <Ionicons name="add" size={26} color={canAdd ? colors.accentText : colors.muted} />
         </Pressable>
       </View>
       <Pressable
         onPress={() => router.push('/shopping-matches')}
         disabled={draggingId !== null}
-        style={({ pressed }) => [styles.shoppingMatchesButton, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.shoppingMatchesButton, pressed && styles.settingsRowPressed]}
         accessibilityRole="button"
         accessibilityLabel={t('whatCanCook')}
       >
-        <Ionicons name="restaurant-outline" size={21} color={colors.text} />
+        <View style={styles.settingsRowIcon}>
+          <Ionicons name="restaurant-outline" size={20} color={colors.text} />
+        </View>
         <Text style={styles.shoppingMatchesButtonText}>{t('whatCanCook')}</Text>
-        <Ionicons name="chevron-forward" size={19} color={colors.muted} />
+        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
       </Pressable>
     </View>
   );
 
   return (
-    <View style={styles.screen}>
+    <View
+      style={styles.screen}
+      onTouchStart={handleScreenTouch}
+      // A mouse or pen on web; touches are handled above.
+      onPointerDown={Platform.OS === 'web' ? (event) => { if (event.nativeEvent.pointerType !== 'touch') handleScreenTouch(); } : undefined}
+    >
       <DraggableFlatList
         containerStyle={styles.shoppingList}
         style={styles.shoppingList}
@@ -286,35 +285,57 @@ export default function ShoppingScreen() {
         renderItem={renderItem}
         onDragBegin={(index) => {
           touchDragActive.current = true;
-          closeSwipeables();
+          closeOpenCard();
           setDraggingId(displayedItems[index]?.id ?? null);
         }}
         onDragEnd={({ data }) => {
           touchDragActive.current = false;
-          reorderItems(data.map((item) => item.id));
-          setDraggingId(null);
+          commitDroppedOrder(() => {
+            if (HOLD_DROPPED_ORDER) setDroppedOrder(data);
+            setDraggingId(null);
+          });
+          const saved = reorderItems(data.map((item) => item.id));
+          if (HOLD_DROPPED_ORDER) void saved.finally(() => setDroppedOrder(null));
         }}
+        onScrollBeginDrag={() => closeOpenCard()}
         autoscrollThreshold={72}
         autoscrollSpeed={110}
-        activationDistance={10}
+        // 10 px keeps taps and scrolling apart from a drag. On web, once the long press
+        // has picked a card up, it follows from the first pixel instead of catching up
+        // 10 px at once. Native keeps one value: changing it reconfigures the gesture
+        // in the middle of the touch.
+        activationDistance={Platform.OS === 'web' && draggingId ? 1 : 10}
         ListHeaderComponent={header}
         ListEmptyComponent={(
-          <View>
-            <Text style={styles.empty}>{t('shoppingEmpty')}</Text>
-            <Text style={[styles.empty, { marginTop: 4 }]}>{t('shoppingEmptyHint')}</Text>
+          <View style={[styles.homeEmpty, { marginTop: 0 }]}>
+            <Ionicons name="basket-outline" size={28} color={colors.muted} />
+            <Text style={styles.homeEmptyTitle}>{t('shoppingEmpty')}</Text>
+            <Text style={styles.homeEmptyText}>{t('shoppingEmptyHint')}</Text>
           </View>
         )}
         ListFooterComponent={hasCompleted ? (
-          <Pressable
-            onPress={clearCompleted}
-            disabled={draggingId !== null}
-            style={({ pressed }) => [styles.clearButton, pressed && styles.pressed]}
-            accessibilityRole="button"
-          >
-            <Text style={styles.deleteText}>{t('clearCompleted')}</Text>
-          </Pressable>
+          <View style={styles.shoppingFooter}>
+            {allCompleted && (
+              <View style={styles.homeEmpty}>
+                <Ionicons name="checkmark-done-outline" size={28} color={colors.muted} />
+                <Text style={styles.homeEmptyTitle}>{t('shoppingAllDoneTitle')}</Text>
+                <Text style={styles.homeEmptyText}>{t('shoppingAllDoneHint')}</Text>
+              </View>
+            )}
+            <Pressable
+              onPress={clearCompleted}
+              disabled={draggingId !== null}
+              style={({ pressed }) => [styles.shoppingClearButton, pressed && { backgroundColor: colors.cardPressed }]}
+              accessibilityRole="button"
+            >
+              <Text style={styles.shoppingClearText}>{t('clearCompleted')}</Text>
+            </Pressable>
+          </View>
         ) : undefined}
         contentContainerStyle={{
+          width: '100%',
+          maxWidth: COLUMN_MAX_WIDTH,
+          alignSelf: 'center',
           paddingTop: insets.top + 24,
           paddingHorizontal: 16,
           // The tab bar below already covers the bottom safe area.
@@ -327,3 +348,182 @@ export default function ShoppingScreen() {
     </View>
   );
 }
+
+type ShoppingCardProps = {
+  item: ShoppingItem;
+  drag: () => void;
+  isActive: boolean;
+  open: boolean;
+  editing: boolean;
+  editingValue: string;
+  anyEditing: boolean;
+  stackedDetail: boolean;
+  onTouch: (id: string) => void;
+  setRef: (id: string, swipeable: SwipeableMethods | null) => void;
+  onWillOpen: (id: string) => void;
+  onWillClose: (id: string) => void;
+  onToggle: (id: string) => void;
+  onEdit: (id: string, text: string) => void;
+  onDelete: (id: string) => void;
+  onEditingValue: (value: string) => void;
+  onSaveEditing: () => void;
+  onCancelEditing: () => void;
+};
+
+// Memoized: a card re-renders only when its own props change. While a card is
+// dragged its cells are not touchable, so nothing here depends on the drag state;
+// the swipe gesture is never reconfigured in the middle of a touch.
+const ShoppingCard = memo(function ShoppingCard(props: ShoppingCardProps) {
+  const { item, isActive, open, editing, anyEditing, stackedDetail } = props;
+  const { colors, t } = useSettings();
+  const styles = useStyles();
+  const swipeable = useRef<SwipeableMethods | null>(null);
+  const offset = useSharedValue(0);
+  // The card content keeps its place and narrows by the width the actions take.
+  const contentStyle = useAnimatedStyle(() => ({ marginLeft: Math.max(0, -offset.get()) }));
+  const { title, detail } = splitItemText(item);
+  const touch = () => props.onTouch(item.id);
+  const edit = () => props.onEdit(item.id, item.text);
+  const remove = () => props.onDelete(item.id);
+
+  return (
+    <View testID="shopping-card" onTouchStart={touch} onPointerDown={Platform.OS === 'web' ? touch : undefined}>
+      <ReanimatedSwipeable
+        ref={(methods) => {
+          swipeable.current = methods;
+          props.setRef(item.id, methods);
+        }}
+        testID="shopping-swipeable"
+        enabled={!anyEditing}
+        friction={1.5}
+        rightThreshold={36}
+        // Gesture Handler 3 takes a signed offset: -18 matches the former 18 px edge offset.
+        dragOffsetFromRight={-18}
+        overshootRight={false}
+        containerStyle={styles.shoppingSwipeRow}
+        onSwipeableWillOpen={() => props.onWillOpen(item.id)}
+        onSwipeableWillClose={() => props.onWillClose(item.id)}
+        renderRightActions={(_progress, translation) => (
+          <View
+            style={styles.shoppingSwipeActions}
+            testID="shopping-swipe-actions"
+            // Closed actions sit under the card: hidden from screen readers, which use
+            // the card's own actions instead. Keyboard focus on web opens the card.
+            accessibilityElementsHidden={!open}
+            importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
+            onFocus={Platform.OS === 'web' ? () => swipeable.current?.openRight() : undefined}
+          >
+            <OffsetMirror from={translation} to={offset} />
+            <GesturePressable
+              onPress={edit}
+              disabled={anyEditing}
+              style={({ pressed }) => [styles.shoppingSwipeAction, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel={t('edit')}
+            >
+              <View style={[styles.shoppingSwipeActionCircle, styles.shoppingSwipeEditCircle]}>
+                <Ionicons name="pencil-outline" size={18} color={colors.text} />
+              </View>
+            </GesturePressable>
+            <GesturePressable
+              onPress={remove}
+              disabled={anyEditing}
+              style={({ pressed }) => [styles.shoppingSwipeAction, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel={t('delete')}
+            >
+              <View style={[styles.shoppingSwipeActionCircle, styles.shoppingSwipeDeleteCircle]}>
+                <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
+              </View>
+            </GesturePressable>
+          </View>
+        )}
+      >
+        <Animated.View style={contentStyle}>
+          <View style={[styles.shoppingRow, isActive && styles.shoppingRowActiveContent]} testID="shopping-row">
+            {editing ? (
+              <View style={styles.shoppingEditRow}>
+                <TextInput
+                  autoFocus
+                  value={props.editingValue}
+                  onChangeText={props.onEditingValue}
+                  onSubmitEditing={props.onSaveEditing}
+                  placeholder={t('shoppingPlaceholder')}
+                  placeholderTextColor={colors.muted}
+                  selectionColor={colors.text}
+                  returnKeyType="done"
+                  style={styles.shoppingEditInput}
+                />
+                <Pressable
+                  onPress={props.onSaveEditing}
+                  style={({ pressed }) => [styles.shoppingEditButton, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('save')}
+                >
+                  <Ionicons name="checkmark" size={22} color={colors.text} />
+                </Pressable>
+                <Pressable
+                  onPress={props.onCancelEditing}
+                  style={({ pressed }) => [styles.shoppingEditButton, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('cancel')}
+                >
+                  <Ionicons name="close" size={22} color={colors.muted} />
+                </Pressable>
+              </View>
+            ) : (
+              <>
+                <Pressable
+                  onPress={() => props.onToggle(item.id)}
+                  style={({ pressed }) => [styles.shoppingCheckbox, pressed && styles.pressed]}
+                  accessibilityRole="checkbox"
+                  accessibilityLabel={item.text}
+                  aria-checked={item.checked}
+                  accessibilityState={{ checked: item.checked }}
+                >
+                  <Ionicons
+                    name={item.checked ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={24}
+                    color={item.checked ? colors.text : colors.muted}
+                  />
+                </Pressable>
+                <Pressable
+                  testID="shopping-drag"
+                  // A second long press during a drag is ignored by the list itself.
+                  onLongPress={props.drag}
+                  delayLongPress={350}
+                  disabled={anyEditing}
+                  style={[styles.shoppingDragArea, stackedDetail && styles.shoppingDragAreaStacked]}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.text}
+                  accessibilityHint={t('shoppingItemGestureHint')}
+                  // Edit and delete without the swipe gesture: VoiceOver, TalkBack, Switch Control.
+                  accessibilityActions={[{ name: 'edit', label: t('edit') }, { name: 'delete', label: t('delete') }]}
+                  onAccessibilityAction={(event) => {
+                    if (event.nativeEvent.actionName === 'edit') edit();
+                    if (event.nativeEvent.actionName === 'delete') remove();
+                  }}
+                >
+                  <Text style={[styles.shoppingText, item.checked && styles.shoppingTextChecked]}>
+                    {title}
+                  </Text>
+                  {detail !== '' && (
+                    <Text
+                      style={[
+                        styles.shoppingDetail,
+                        stackedDetail && styles.shoppingDetailStacked,
+                        item.checked && styles.shoppingTextChecked,
+                      ]}
+                    >
+                      {detail}
+                    </Text>
+                  )}
+                </Pressable>
+              </>
+            )}
+          </View>
+        </Animated.View>
+      </ReanimatedSwipeable>
+    </View>
+  );
+});

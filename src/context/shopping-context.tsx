@@ -10,7 +10,7 @@ type ShoppingContextValue = {
   addItem: (text: string, onSaved?: () => void) => Promise<boolean>;
   addIngredients: (ingredients: string[], onSaved?: (count: number) => void) => Promise<number | null>;
   updateItem: (id: string, text: string, onSaved?: () => void) => Promise<boolean>;
-  reorderItems: (orderedIds: string[]) => void;
+  reorderItems: (orderedIds: string[]) => Promise<boolean>;
   toggleItem: (id: string) => void;
   removeItem: (id: string) => void;
   clearCompleted: () => void;
@@ -55,7 +55,7 @@ export function ShoppingProvider({ children }: PropsWithChildren) {
       }), () => { if (valid) onSaved?.(); });
       return saved && valid;
     },
-    reorderItems: ids => { void store.update(current => reorderShoppingItems(current, ids)); },
+    reorderItems: ids => store.update(current => reorderShoppingItems(current, ids)),
     toggleItem: id => { void store.update(current => current.map(item => item.id === id ? { ...item, checked: !item.checked } : item)); },
     removeItem: id => { void store.update(current => current.filter(item => item.id !== id)); },
     clearCompleted: () => { void store.update(current => current.filter(item => !item.checked)); },

@@ -7,7 +7,7 @@ test('manual add, compatible quantity merge, edit, check and clear persist', asy
   await addItem(page, 'Молоко — 500 мл');
   await addItem(page, ' молоко — 1 л ');
   await expect(rows(page)).toHaveCount(1);
-  await expect(rows(page).getByTestId('shopping-drag')).toHaveText('Молоко — 1500 мл');
+  await expectOrder(page, ['Молоко — 1500 мл']);
   await addItem(page, 'Хлеб');
   const bread = rows(page).nth(1);
   await expect(bread.getByRole('button', { name: 'Изменить' })).toHaveCount(0);

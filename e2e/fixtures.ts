@@ -87,8 +87,11 @@ export async function revealShoppingActions(page: Page, row: Locator) {
   await page.mouse.up();
 }
 
+// The row shows the name and the amount separately; its accessible name keeps the
+// full stored text, e.g. "Молоко — 1500 мл".
 export async function expectOrder(page: Page, names: string[]) {
-  await expect(rows(page).getByTestId('shopping-drag')).toHaveText(names);
+  await expect.poll(() => rows(page).getByTestId('shopping-drag')
+    .evaluateAll(elements => elements.map(element => element.getAttribute('aria-label')))).toEqual(names);
 }
 
 export async function visualReady(page: Page) {

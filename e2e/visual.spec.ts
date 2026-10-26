@@ -1,4 +1,4 @@
-import { test, expect, openHome, recipes, settingRow, shopping, visualReady } from './fixtures';
+import { test, expect, openHome, recipes, revealShoppingActions, rows, settingRow, shopping, visualReady } from './fixtures';
 
 for (const theme of ['light', 'dark'] as const) {
   test.describe(theme, () => {
@@ -31,6 +31,21 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(page.getByText('Оформление', { exact: true })).toBeVisible();
       await visualReady(page);
       await expect(page).toHaveScreenshot('settings-large-text.png');
+    });
+    test('shopping matches @visual', async ({ page }) => {
+      await page.goto('/shopping-matches');
+      await expect(page.getByRole('button', { name: 'Открыть рецепт Омлет с сыром', exact: true })).toBeVisible();
+      await visualReady(page);
+      await expect(page).toHaveScreenshot('shopping-matches.png');
+    });
+    test('shopping card actions @visual', async ({ page }) => {
+      await page.goto('/shopping');
+      await expect(rows(page)).toHaveCount(3);
+      await revealShoppingActions(page, rows(page).first());
+      await expect(page.getByRole('button', { name: 'Удалить', exact: true }).first()).toBeVisible();
+      await page.waitForTimeout(400); // Let the open animation settle before the snapshot.
+      await page.mouse.move(0, 0);
+      await expect(page).toHaveScreenshot('shopping-actions.png');
     });
     test.describe('choice', () => {
       // One recipe keeps the random pick deterministic.
