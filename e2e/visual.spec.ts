@@ -1,4 +1,4 @@
-import { test, expect, openHome, settingRow, shopping, visualReady } from './fixtures';
+import { test, expect, openHome, recipes, settingRow, shopping, visualReady } from './fixtures';
 
 for (const theme of ['light', 'dark'] as const) {
   test.describe(theme, () => {
@@ -31,6 +31,30 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(page.getByText('Оформление', { exact: true })).toBeVisible();
       await visualReady(page);
       await expect(page).toHaveScreenshot('settings-large-text.png');
+    });
+    test.describe('choice', () => {
+      // One recipe keeps the random pick deterministic.
+      test.use({ seedRecipes: [[recipes[0]], { scope: 'test' }] });
+      test('choice welcome and result @visual', async ({ page }) => {
+        await page.goto('/');
+        await expect(page.getByRole('button', { name: 'Выбрать блюдо', exact: true })).toBeVisible();
+        await visualReady(page);
+        await expect(page).toHaveScreenshot('choice-welcome.png');
+        await page.getByRole('button', { name: 'Выбрать блюдо', exact: true }).click();
+        await expect(page.getByTestId('choice-result')).toContainText(recipes[0].title);
+        await visualReady(page);
+        await expect(page).toHaveScreenshot('choice-result.png');
+      });
+    });
+    test.describe('choice, empty book', () => {
+      test.use({ seedRecipes: [] });
+      test('choice empty @visual', async ({ page }) => {
+        await page.goto('/');
+        await page.getByRole('button', { name: 'Выбрать блюдо', exact: true }).click();
+        await expect(page.getByText('Твоя книга пока пуста', { exact: true })).toBeVisible();
+        await visualReady(page);
+        await expect(page).toHaveScreenshot('choice-empty.png');
+      });
     });
     test('about screen @visual', async ({ page }) => {
       await page.goto('/about');

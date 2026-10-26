@@ -83,25 +83,8 @@ for (const language of ['ru', 'en'] as const) {
   });
 }
 
-test('empty filtered random selection gives an accessible explanation without changing data', async ({ page }) => {
-  await openHome(page);
-  await page.getByRole('button', { name: 'Любимые', exact: true }).click();
-  const original = await page.evaluate(() => localStorage.getItem('recipe-book-v1'));
-  await page.getByRole('tab', { name: 'Выбор', exact: true }).click();
-  await page.getByRole('button', { name: 'Выбрать блюдо', exact: true }).click();
-  await expect(page.getByRole('alert')).toBeVisible();
-  expect(await page.evaluate(() => localStorage.getItem('recipe-book-v1'))).toBe(original);
-});
-
-test.describe('empty English book', () => {
-  test.use({ seedRecipes: [], seedSettings: { language: 'en', theme: 'dark', shoppingCompletedBehavior: 'keep' } });
-  test('random choice explains that a recipe must be added', async ({ page }) => {
-    await page.goto('/');
-    await page.getByRole('button', { name: 'Pick a dish', exact: true }).click();
-    await expect(page.getByRole('alert')).toContainText('Add at least one recipe');
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('recipe-book-v1')!).recipes)).toEqual([]);
-  });
-});
+// The Choice tab picks from the whole book and explains an empty book on its own
+// screen; e2e/choice.spec.ts covers both, including that picking never writes.
 
 test.describe('textual ingredient integration', () => {
   test.use({ seedRecipes: [{ id: 'seasoning', title: 'Тест приправ', category: null, time: 10,
@@ -116,6 +99,8 @@ test.describe('textual ingredient integration', () => {
     await page.getByRole('button', { name: /Добавить в покупки$/ }).click();
     await page.getByRole('button', { name: /^Добавить 3/ }).click();
     await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('shopping-list-v1')!).length)).toBe(3);
+    // The selection closes itself; a new page load during that navigation is aborted.
+    await expect(page).toHaveURL(/\/recipe\/seasoning$/);
     await page.goto('/shopping');
     await expect(page.getByTestId('shopping-row')).toHaveCount(3);
     await expect(page.getByRole('checkbox', { name: 'Соль — по вкусу', exact: true })).toBeVisible();

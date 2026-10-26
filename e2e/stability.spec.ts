@@ -23,8 +23,9 @@ test.describe('long content and fixed actions', () => {
   test.use({ seedRecipes: [[longRecipe, { ...longRecipe, id: 'other', title: 'Другой длинный рецепт' }], { scope: 'test' }] });
 
   test('random recipe final content can be scrolled fully above Another option', async ({ page }) => {
-    await page.goto('/');
-    await page.getByRole('button', { name: 'Выбрать блюдо', exact: true }).click();
+    // The recipe screen keeps its random mode for direct links; the Choice tab now
+    // shows its own result and opens recipes without it.
+    await page.goto('/recipe/long-recipe?fromRandom=true');
     const another = page.getByRole('button', { name: 'Другой вариант', exact: true });
     await expect(another).toBeVisible();
     await scrollToEnd(page);
@@ -37,9 +38,8 @@ test.describe('long content and fixed actions', () => {
     }).toBe(true);
     await expect(page.getByText(longRecipe.steps.at(-1)!, { exact: true })).toBeVisible();
     await another.click();
+    await expect(page).toHaveURL(/\/recipe\/[\w-]+\?fromRandom=true$/);
     await expect(another).toBeVisible();
-    await page.getByRole('button', { name: 'Назад', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Выбрать блюдо', exact: true })).toBeVisible();
   });
 
   test('form save remains reachable when web keyboard reduces the viewport', async ({ page }) => {
