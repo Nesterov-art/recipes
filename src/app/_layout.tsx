@@ -38,7 +38,7 @@ function RootNavigator() {
       <Stack.Screen name="history" />
       <Stack.Screen name="about" />
       <Stack.Screen
-        name="cook"
+        name="cooking"
         options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
       />
       <Stack.Screen

@@ -100,7 +100,7 @@ function ChoiceContent() {
           : header(t('choiceResultKicker'), t('choiceResultTitle'), t('choiceResultLede'))}
         <ArtCard style={styles.choiceCard}>
           {cardTop(t('choiceYourOption'))}
-          <OrbitArt height={190} />
+          <OrbitArt height={220} />
           <View style={styles.choiceCardCopy} testID="choice-result">
             <Text style={[styles.choiceCategoryLine, { color: art.warm }]}>{meta}</Text>
             <Text style={[styles.choiceRecipeTitle, { color: art.text }]}>{picked.title}</Text>
@@ -168,7 +168,7 @@ function ChoiceContent() {
         {header(t('choiceKicker'), t('choiceTitle'), t('choiceLede'))}
         <ArtCard style={styles.choiceCard}>
           {cardTop(t('choiceInspiration'))}
-          <OrbitArt height={200} />
+          <OrbitArt height={220} />
           <View style={styles.choiceCardCopy}>
             <Text style={[styles.choiceCardTitle, { color: art.text }]}>{t('choiceIdeaTitle')}</Text>
             <Text style={[styles.choiceCardText, { color: art.muted }]}>{t('choiceIdeaText')}</Text>

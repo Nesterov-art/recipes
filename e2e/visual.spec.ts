@@ -56,6 +56,17 @@ for (const theme of ['light', 'dark'] as const) {
         await expect(page).toHaveScreenshot('choice-empty.png');
       });
     });
+    test('cooking step and finish @visual', async ({ page }) => {
+      await page.goto(`/cooking?id=${recipes[0].id}`);
+      await expect(page.getByTestId('cooking-step')).toHaveText(recipes[0].steps[0]);
+      await visualReady(page);
+      await expect(page).toHaveScreenshot('cooking-step.png');
+      await page.getByRole('button', { name: 'Следующий шаг', exact: true }).click();
+      await page.getByRole('button', { name: 'Завершить', exact: true }).click();
+      await expect(page.getByTestId('cooking-done')).toBeVisible();
+      await visualReady(page);
+      await expect(page).toHaveScreenshot('cooking-done.png');
+    });
     test('about screen @visual', async ({ page }) => {
       await page.goto('/about');
       await expect(page.getByTestId('about-screen').getByText('Monorec', { exact: true })).toBeVisible();

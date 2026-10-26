@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRecipes } from '@/context/recipes-context';
 import { useSettings } from '@/context/settings-context';
 import { useStyles } from '@/styles';
-import { cookingHistoryDateLabel, ratingEmoji, ratingLabel } from '@/utils/recipes';
+import { cookingHistoryDateLabel } from '@/utils/recipes';
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -54,11 +54,7 @@ export default function HistoryScreen() {
               <Text style={styles.historyDate}>
                 {cookingHistoryDateLabel(cooking.cookedAt, language)}
               </Text>
-              {cooking.rating && (
-                <Text style={styles.historyRating}>
-                  {ratingEmoji(cooking.rating)} {ratingLabel(cooking.rating, t)}
-                </Text>
-              )}
+              {/* Ratings are no longer collected; older ones stay stored but are not shown. */}
               {cooking.note && <Text style={styles.historyNote}>«{cooking.note}»</Text>}
             </View>
           ))}

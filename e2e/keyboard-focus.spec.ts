@@ -63,7 +63,9 @@ test.describe('long shopping list', () => {
 test('cooking note keeps focus and text after a scroll', async ({ page }) => {
   await openHome(page);
   await page.getByRole('button', { name: 'Открыть рецепт Омлет с сыром', exact: true }).click();
-  await page.getByRole('button', { name: /Я приготовил$/ }).click();
+  await page.getByRole('button', { name: 'Начать готовить', exact: true }).click();
+  await page.getByRole('button', { name: 'Следующий шаг', exact: true }).click();
+  await page.getByRole('button', { name: 'Завершить', exact: true }).click();
   const note = page.getByPlaceholder('Заметка о приготовлении', { exact: true });
   await expectTypingSurvivesScroll(page, note, 'Меньше соли');
 });

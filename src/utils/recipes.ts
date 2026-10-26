@@ -53,18 +53,6 @@ export function cookingHistoryDateLabel(isoDate: string, language: Language) {
   return date.toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US', options);
 }
 
-export function ratingEmoji(rating: CookingRating) {
-  if (rating === 'disliked') return '😕';
-  if (rating === 'good') return '🙂';
-  return '🤤';
-}
-
-export function ratingLabel(rating: CookingRating, t: Translate) {
-  if (rating === 'disliked') return t('ratingDisliked');
-  if (rating === 'good') return t('ratingGood');
-  return t('ratingGreat');
-}
-
 export function filterLabel(filter: RecipeFilter, t: Translate) {
   const labels: Record<RecipeFilter, ReturnType<Translate>> = {
     Все: t('filterAll'),

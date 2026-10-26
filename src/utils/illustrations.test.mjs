@@ -3,14 +3,22 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
+import choiceOrbit from '../illustrations/choice-orbit.ts';
+import choiceOrbitLight from '../illustrations/choice-orbit-light.ts';
 import chooseWhatToCook from '../illustrations/choose-what-to-cook.ts';
 import chooseWhatToCookLight from '../illustrations/choose-what-to-cook-light.ts';
+import stepByStepCooking from '../illustrations/step-by-step-cooking.ts';
+import stepByStepCookingLight from '../illustrations/step-by-step-cooking-light.ts';
 
-// SHA-256 of the originals: CHOICE-01 from design/monorec-2.2/asset_manifest.json,
-// its light variant as delivered separately for the light theme.
+// SHA-256 of the originals: CHOICE-01 and COOK-01 from design/monorec-2.2/asset_manifest.json,
+// their light variants and the Choice orbit as delivered separately per theme.
 const ORIGINALS = {
+  'choice_orbit.svg': { hash: '334e93c8cd65697c21714678ddde0c966bb144bf95a060e2d882c5b10dd3e6f9', xml: choiceOrbit },
+  'choice_orbit_light.svg': { hash: 'ae48ea481225a08f53c14811c0b4f8e52ced5edfb068f46203821821697d39d4', xml: choiceOrbitLight },
   'choose_what_to_cook.svg': { hash: 'f902ce9e336ce930d755620f6f8869956f8ac87d70cb8ad944d007300d99b448', xml: chooseWhatToCook },
   'choose_what_to_cook_light.svg': { hash: 'dcdcee2c743478125edbcdba163d0dc44c6a4b75cb78d1c265259f2f73c9feda', xml: chooseWhatToCookLight },
+  'step_by_step_cooking.svg': { hash: '7b4475c10222a934578bce755427d432b895e0857fcbd8b224e893457d4d8818', xml: stepByStepCooking },
+  'step_by_step_cooking_light.svg': { hash: '7ac1452eb3fb4b78fcb52446accd2f678e58c47e18d99842ef78910b43af9143', xml: stepByStepCookingLight },
 };
 
 for (const [file, original] of Object.entries(ORIGINALS)) {
@@ -22,7 +30,11 @@ for (const [file, original] of Object.entries(ORIGINALS)) {
   });
 }
 
-test('the light variant redraws CHOICE-01 with the same shapes', () => {
+test('the light variants redraw their dark originals with the same shapes', () => {
   const shapes = xml => [...xml.matchAll(/ d="([^"]+)"/g)].map(match => match[1]);
+  // The light orbit draws its plate half a unit lower; everything else matches.
+  assert.equal(shapes(choiceOrbitLight).length, shapes(choiceOrbit).length);
   assert.deepEqual(shapes(chooseWhatToCookLight), shapes(chooseWhatToCook));
+  // The light COOK-01 was re-exported with slightly different rounding.
+  assert.equal(shapes(stepByStepCookingLight).length, shapes(stepByStepCooking).length);
 });

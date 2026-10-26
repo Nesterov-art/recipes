@@ -9,12 +9,11 @@ import { useRecipes } from '@/context/recipes-context';
 import { useSettings } from '@/context/settings-context';
 import { useStyles } from '@/styles';
 import { confirmDelete } from '@/utils/confirm-delete';
+import { cookingSteps } from '@/utils/cooking';
 import {
   categoryLabel,
   cookingDateLabel,
   plural,
-  ratingEmoji,
-  ratingLabel,
 } from '@/utils/recipes';
 
 function first(value: string | string[] | undefined) {
@@ -29,9 +28,10 @@ export default function RecipeScreen() {
   const params = useLocalSearchParams<{ id?: string | string[]; fromRandom?: string | string[] }>();
   const id = first(params.id);
   const fromRandom = first(params.fromRandom) === 'true';
-  const { recipes, visible, deleteRecipe, getRecipeMeta, pickRandom, toggleFavorite } = useRecipes();
+  const { recipes, visible, deleteRecipe, getRecipeMeta, pickRandom, recordCooking, toggleFavorite } = useRecipes();
   const selected = recipes.find((recipe) => recipe.id === id);
   const deleting = useRef(false);
+  const recording = useRef(false);
 
   if (!selected) return <View style={styles.screen} />;
 
@@ -39,7 +39,6 @@ export default function RecipeScreen() {
   const selectedTitle = selected.title;
   const meta = getRecipeMeta(selected.id);
   const lastCooking = meta.cookings[0];
-  const lastRatedCooking = meta.cookings.find((cooking) => cooking.rating);
   const lastNotedCooking = meta.cookings.find((cooking) => cooking.note);
 
   async function handleDelete() {
@@ -54,6 +53,14 @@ export default function RecipeScreen() {
     }
   }
 
+  // "I cooked this" records one entry right away; a note can be left at the end of step-by-step cooking.
+  async function handleCooked() {
+    if (recording.current) return;
+    recording.current = true;
+    await recordCooking(selectedId);
+    recording.current = false;
+  }
+
   function handleAnother() {
     const recipe = pickRandom();
     if (recipe) {
@@ -66,6 +73,7 @@ export default function RecipeScreen() {
   }
 
   const ingredientCount = selected.ingredients.length;
+  const canCook = cookingSteps(selected.steps).length > 0;
 
   return (
     <View style={styles.screen}>
@@ -139,13 +147,28 @@ export default function RecipeScreen() {
           </View>
         </View>
 
+        {canCook && (
+          <Pressable
+            onPress={() => router.push({ pathname: '/cooking', params: { id: selected.id } })}
+            style={({ pressed }) => [styles.cookingButton, pressed && { transform: [{ scale: 0.98 }] }]}
+            accessibilityRole="button"
+            accessibilityLabel={t('startCooking')}
+          >
+            <Ionicons name="play" size={19} color={colors.accentText} />
+            <Text style={styles.cookingButtonText}>{t('startCooking')}</Text>
+          </Pressable>
+        )}
+        {/* "I cooked this" stays available; with steps it becomes the secondary action. */}
         <Pressable
-          onPress={() => router.push({ pathname: '/cook', params: { id: selected.id } })}
-          style={({ pressed }) => [styles.cookingButton, pressed && { transform: [{ scale: 0.98 }] }]}
+          onPress={handleCooked}
+          style={({ pressed }) => canCook
+            ? [styles.actionButton, pressed && styles.pressed]
+            : [styles.cookingButton, pressed && { transform: [{ scale: 0.98 }] }]}
           accessibilityRole="button"
+          accessibilityLabel={t('cookedAction')}
         >
-          <Ionicons name="checkmark" size={21} color={colors.accentText} />
-          <Text style={styles.cookingButtonText}>{t('cookedAction')}</Text>
+          <Ionicons name="checkmark" size={21} color={canCook ? colors.text : colors.accentText} />
+          <Text style={canCook ? styles.actionButtonText : styles.cookingButtonText}>{t('cookedAction')}</Text>
         </Pressable>
 
         <View style={styles.cookingSummary}>
@@ -166,14 +189,6 @@ export default function RecipeScreen() {
               <Text style={styles.cookingSummaryMuted}>
                 {t('lastCooked', { date: cookingDateLabel(lastCooking.cookedAt, language) })}
               </Text>
-              {lastRatedCooking?.rating && (
-                <>
-                  <Text style={styles.cookingDetailLabel}>{t('lastRating')}</Text>
-                  <Text style={styles.cookingSummaryText}>
-                    {ratingEmoji(lastRatedCooking.rating)} {ratingLabel(lastRatedCooking.rating, t)}
-                  </Text>
-                </>
-              )}
               {lastNotedCooking?.note && (
                 <>
                   <Text style={styles.cookingDetailLabel}>{t('lastNote')}</Text>

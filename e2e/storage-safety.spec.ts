@@ -142,7 +142,7 @@ test('failed recipe creation keeps the form draft and does not claim success', a
   expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).recipes.filter((r: { title: string }) => r.title === 'Рецепт с отказом').length, bookKey)).toBe(1);
 });
 
-test('failed cooking write preserves note and rating; retry appends exactly one event', async ({ page }) => {
+test('failed cooking write preserves the note; retry appends exactly one event', async ({ page }) => {
   await page.addInitScript(() => {
     const original = Storage.prototype.setItem; let failed = false;
     Storage.prototype.setItem = function (key, value) {
@@ -152,10 +152,11 @@ test('failed cooking write preserves note and rating; retry appends exactly one 
   });
   await openHome(page);
   await page.getByRole('button', { name: 'Открыть рецепт Омлет с сыром', exact: true }).click();
-  await page.getByRole('button', { name: /Я приготовил$/ }).click();
-  await page.getByRole('button', { name: /Отлично/ }).click();
+  await page.getByRole('button', { name: 'Начать готовить', exact: true }).click();
+  await page.getByRole('button', { name: 'Следующий шаг', exact: true }).click();
+  await page.getByRole('button', { name: 'Завершить', exact: true }).click();
   await page.getByPlaceholder('Заметка о приготовлении', { exact: true }).fill('Меньше соли');
-  await page.getByRole('button', { name: 'Сохранить приготовление', exact: true }).click();
+  await page.getByRole('button', { name: 'Записать в историю', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('Не удалось сохранить изменения');
   await expect(page.getByPlaceholder('Заметка о приготовлении', { exact: true })).toHaveValue('Меньше соли');
   await expect(page.getByText('Приготовление сохранено', { exact: true })).toHaveCount(0);
@@ -164,7 +165,7 @@ test('failed cooking write preserves note and rating; retry appends exactly one 
   await expect(page.getByText('Готовили: 1 раз', { exact: true })).toBeVisible();
   await page.reload();
   const events = await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).recipeMeta['e2e-omelet'].cookings, bookKey);
-  expect(events).toHaveLength(1); expect(events[0]).toMatchObject({ note: 'Меньше соли', rating: 'great' });
+  expect(events).toHaveLength(1); expect(events[0]).toMatchObject({ note: 'Меньше соли' });
 });
 
 test('failed settings write does not change saved preferences and can be retried', async ({ page }) => {
