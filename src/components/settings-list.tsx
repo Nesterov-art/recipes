@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Children, Fragment, type ComponentRef, type ReactNode, type Ref } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, useWindowDimensions, View } from 'react-native';
 
 import { useSettings } from '@/context/settings-context';
 import { useStyles } from '@/styles';
@@ -59,7 +59,9 @@ type SettingsRowProps = {
 export function SettingsRow({ icon, label, detail, value, accessory, onPress, disabled = false, hint, expanded, role = 'button', ref }: SettingsRowProps) {
   const styles = useStyles();
   const { colors, fontScale } = useSettings();
-  const stacked = !!value && fontScale >= STACKED_FONT_SCALE;
+  // On web the app scales text itself (fontScale); natively the OS does (systemFontScale).
+  const { fontScale: systemFontScale } = useWindowDimensions();
+  const stacked = !!value && fontScale * systemFontScale >= STACKED_FONT_SCALE;
   const accessibilityLabel = `${label}${detail ? `, ${detail}` : ''}${value ? `: ${value}` : ''}`;
   const content = <>
     <View style={styles.settingsRowIcon}><Ionicons name={icon} size={20} color={colors.text} /></View>

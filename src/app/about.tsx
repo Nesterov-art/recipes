@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,8 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { APP_ICONS } from '@/constants/app-icons';
 import { MONOREC_THEMES } from '@/constants/theme';
 import { PaletteProvider, useSettings } from '@/context/settings-context';
-import { SettingsRow, SettingsSection } from '@/components/settings-list';
+import { SettingsHint, SettingsRow, SettingsSection } from '@/components/settings-list';
 import { useStyles } from '@/styles';
+import { appUpdateId, appVersion as getAppVersion } from '@/utils/app-version';
 import { openFeedback } from '@/utils/feedback';
 
 export default function AboutScreen() {
@@ -19,7 +19,8 @@ function AboutContent() {
   const insets = useSafeAreaInsets();
   const { colors, resolvedTheme, t } = useSettings();
   const styles = useStyles();
-  const appVersion = Constants.expoConfig?.version ?? '—';
+  const appVersion = getAppVersion();
+  const updateId = appUpdateId();
 
   return (
     <View testID="about-screen" style={styles.screen}>
@@ -45,7 +46,10 @@ function AboutContent() {
           <View style={styles.aboutHero}>
             <Image source={APP_ICONS[resolvedTheme]} style={styles.aboutIcon} accessibilityIgnoresInvertColors alt="" />
             <Text style={styles.aboutName}>Monorec</Text>
-            <Text style={styles.aboutVersion}>{t('versionNumber', { version: appVersion })}</Text>
+            <Text style={styles.aboutVersion} testID="about-version">
+              {t('versionNumber', { version: appVersion })}
+              {updateId ? ` · ${t('aboutUpdate', { id: updateId })}` : ''}
+            </Text>
             <Text style={styles.aboutDescription}>{t('aboutDescription')}</Text>
           </View>
 
@@ -60,7 +64,21 @@ function AboutContent() {
             />
           </SettingsSection>
 
-          <Text style={styles.aboutNote}>{t('aboutStorage')}</Text>
+          {/* Local storage only: no sync and no automatic backup, so the way to a copy is right here. */}
+          <SettingsSection
+            title={t('aboutData')}
+            footer={<>
+              <SettingsHint>{t('aboutStorage')}</SettingsHint>
+              <SettingsHint>{t('aboutBackupHint')}</SettingsHint>
+            </>}
+          >
+            <SettingsRow
+              icon="document-text-outline"
+              label={t('backups')}
+              accessory="chevron"
+              onPress={() => router.push('/backup')}
+            />
+          </SettingsSection>
         </View>
       </ScrollView>
     </View>

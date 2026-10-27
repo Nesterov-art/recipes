@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import { readFile } from 'node:fs/promises';
-import { test, expect, openHome, recipes, shopping, visualReady } from './fixtures';
+import { test, expect, openBackups, openHome, recipes, shopping, visualReady } from './fixtures';
 
 const incoming = { id: 'new-salad', title: 'Салат из файла', category: null, time: 5, ingredients: ['Огурец — 1 шт'], steps: ['Нарезать.'] };
 const backup = (items = [incoming]) => ({ format: 'recipes-backup', version: 1, exportedAt: '2026-10-20T10:00:00Z', recipes: items, recipeMeta: {
@@ -10,14 +10,13 @@ async function select(page: import('@playwright/test').Page, value: unknown, nam
   await page.getByTestId('recipe-file-input').setInputFiles({ name, mimeType: 'application/json', buffer: Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)) });
 }
 async function settings(page: import('@playwright/test').Page) {
-  await openHome(page);
-  await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
+  await openBackups(page);
 }
 
 test('downloaded JSON contains the full book and can be imported again without duplicates', async ({ page }, testInfo) => {
   await settings(page);
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Выгрузить в файл', exact: true }).click();
+  await page.getByRole('button', { name: 'Выгрузить рецепты', exact: true }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/^recipes-.*\.json$/);
   const file = testInfo.outputPath('backup.json');
@@ -99,15 +98,15 @@ test.describe('empty book', () => {
   test.use({ seedRecipes: [] });
   test('export is disabled; file picker opens from the button and import restores favourites and history', async ({ page }) => {
     await settings(page);
-    await expect(page.getByRole('button', { name: 'Выгрузить в файл', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Выгрузить рецепты', exact: true })).toBeDisabled();
     const chooserPromise = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: 'Загрузить из файла', exact: true }).click();
+    await page.getByRole('button', { name: 'Загрузить рецепты', exact: true }).click();
     await (await chooserPromise).setFiles({ name: 'recipes.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup())) });
     await page.getByRole('button', { name: 'Добавить в мою книгу', exact: true }).click();
     await expect(page.getByTestId('recipe-import-preview')).toHaveCount(0);
     await page.reload();
     const downloadPromise = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'Выгрузить в файл', exact: true }).click();
+    await page.getByRole('button', { name: 'Выгрузить рецепты', exact: true }).click();
     expect((await downloadPromise).suggestedFilename()).toMatch(/\.json$/);
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('recipe-book-v1')!).recipeMeta['new-salad'])).toEqual(backup().recipeMeta['new-salad']);
   });
@@ -158,9 +157,9 @@ test.describe('system file sharing', () => {
     });
     await settings(page);
     expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
-    await page.getByRole('button', { name: 'Выгрузить в файл', exact: true }).click();
+    await page.getByRole('button', { name: 'Выгрузить рецепты', exact: true }).click();
     await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('test-shared-backup') ?? '{}').recipes?.length)).toBe(2);
     await expect(page.getByRole('alert')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Загрузить из файла', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Загрузить рецепты', exact: true })).toBeEnabled();
   });
 });

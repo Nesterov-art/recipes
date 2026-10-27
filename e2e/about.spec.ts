@@ -37,7 +37,21 @@ test('About shows the real version, description, developer and feedback without 
   await expect(screen.getByRole('link', { name: 'Обратная связь', exact: true })).toBeVisible();
   // Only the existing feedback channel is linked; no website, social or legal links.
   await expect(screen.getByRole('link')).toHaveCount(1);
-  for (const missing of [/синхрониз/i, /облак/i, /политик/i, /лиценз/i]) await expect(screen.getByText(missing)).toHaveCount(0);
+  for (const missing of [/политик/i, /лиценз/i]) await expect(screen.getByText(missing)).toHaveCount(0);
+  // Storage is described as it is: local only, and sync or automatic backups are ruled out, not promised.
+  await expect(screen.getByText('Данные хранятся только на этом устройстве. Облачной синхронизации и автоматических копий нет.', { exact: true })).toBeVisible();
+  await expect(screen.getByText(/синхронизац|облак/i)).toHaveCount(1);
+});
+
+test('About leads to the backups, and back returns to About', async ({ page }) => {
+  await openAbout(page);
+  await about(page).getByRole('button', { name: 'Резервные копии', exact: true }).click();
+  await expect(page).toHaveURL(/\/backup$/);
+  const backup = page.getByTestId('backup-screen');
+  await expect(backup.getByRole('button', { name: 'Выгрузить весь профиль', exact: true })).toBeVisible();
+  await expect(backup.getByRole('button', { name: 'Восстановить профиль', exact: true })).toBeVisible();
+  await backup.getByRole('button', { name: 'Назад', exact: true }).click();
+  await expect(page).toHaveURL(/\/about$/);
 });
 
 test.describe('English, dark theme', () => {
@@ -69,7 +83,7 @@ test.describe('narrow screen with large text', () => {
   test('About fits 320 px with large text and scrolls to the storage note', async ({ page }) => {
     await openAbout(page);
     await page.evaluate(() => { document.documentElement.style.fontSize = '24px'; });
-    const note = about(page).getByText(/Данные хранятся на этом устройстве/);
+    const note = about(page).getByText(/Данные хранятся только на этом устройстве/);
     await note.scrollIntoViewIfNeeded();
     await expect(note).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

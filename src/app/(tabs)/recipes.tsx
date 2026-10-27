@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Animated, { FadeOut } from 'react-native-reanimated';
-import { FlatList, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { FlatList, Platform, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EmptyStateArt } from '@/components/choice-art';
 import { FILTERS } from '@/constants/recipes';
 import { MONOREC_THEMES } from '@/constants/theme';
 import { useRecipes } from '@/context/recipes-context';
@@ -34,7 +35,10 @@ function RecipesContent() {
   const avgTime = recipes.length
     ? Math.round(recipes.reduce((sum, recipe) => sum + recipe.time, 0) / recipes.length)
     : 0;
-  const stackedTime = fontScale >= STACKED_FONT_SCALE;
+  // On web the app scales text itself (fontScale); natively the OS does (systemFontScale).
+  const { fontScale: systemFontScale } = useWindowDimensions();
+  const textScale = fontScale * systemFontScale;
+  const stackedTime = textScale >= STACKED_FONT_SCALE;
   const cookingCount = Object.values(recipeMeta).reduce((sum, meta) => sum + meta.cookings.length, 0);
 
   function cycleSort() {
@@ -206,7 +210,10 @@ function RecipesContent() {
         ListHeaderComponent={listHeader}
         ListEmptyComponent={
           <View style={styles.homeEmpty}>
-            <Ionicons name={emptyState.icon} size={28} color={colors.muted} />
+            {/* EMPTY-01 only for the empty book; no results for a search or filter stay plain. */}
+            {recipes.length === 0
+              ? <EmptyStateArt height={200} />
+              : <Ionicons name={emptyState.icon} size={28} color={colors.muted} />}
             <Text style={styles.homeEmptyTitle}>{emptyState.title}</Text>
             <Text style={styles.homeEmptyText}>{emptyState.text}</Text>
             <Pressable
@@ -247,7 +254,7 @@ function RecipesContent() {
               >
                 {!isFirst && <View style={styles.homeRowSeparator} />}
                 <View style={styles.homeRowBody}>
-                  <Text style={styles.homeRowTitle} numberOfLines={stackedTime ? undefined : 2}>{item.title}</Text>
+                  <Text style={styles.homeRowTitle} numberOfLines={textScale > 1 ? undefined : 2}>{item.title}</Text>
                   <Text style={styles.homeRowMeta}>{meta}</Text>
                 </View>
                 <View style={styles.homeRowAside}>

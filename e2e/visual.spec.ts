@@ -115,6 +115,12 @@ for (const theme of ['light', 'dark'] as const) {
       await visualReady(page);
       await expect(page).toHaveScreenshot('form-large-text.png');
     });
+    test('backup screen @visual', async ({ page }) => {
+      await page.goto('/backup');
+      await expect(page.getByRole('button', { name: 'Восстановить профиль', exact: true })).toBeVisible();
+      await visualReady(page);
+      await expect(page).toHaveScreenshot('backup.png');
+    });
     test('about screen @visual', async ({ page }) => {
       await page.goto('/about');
       await expect(page.getByTestId('about-screen').getByText('Monorec', { exact: true })).toBeVisible();

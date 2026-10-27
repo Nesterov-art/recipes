@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRef } from 'react';
-import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MONOREC_THEMES } from '@/constants/theme';
@@ -39,6 +39,7 @@ function RecipeContent() {
   const insets = useSafeAreaInsets();
   const effectiveBottomInset = Platform.OS === 'web' ? 0 : insets.bottom;
   const { colors, fontScale, language, t } = useSettings();
+  const { fontScale: systemFontScale } = useWindowDimensions();
   const styles = useStyles();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const id = first(params.id);
@@ -85,7 +86,8 @@ function RecipeContent() {
   const steps = cookingSteps(selected.steps);
   const canCook = steps.length > 0;
   const category = selected.category ? categoryLabel(selected.category, t) : null;
-  const stacked = fontScale >= STACKED_FONT_SCALE;
+  // On web the app scales text itself (fontScale); natively the OS does (systemFontScale).
+  const stacked = fontScale * systemFontScale >= STACKED_FONT_SCALE;
   const stats: { label: string; value: string | number; unit?: string }[] = [
     { label: t('time'), value: selected.time, unit: t('minuteShort') },
     { label: t('composition'), value: ingredientCount, unit: t('itemsShort') },

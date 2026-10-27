@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import type { Page } from '@playwright/test';
-import { test, expect, openHome, recipes } from './fixtures';
+import { test, expect, openBackups, openHome, recipes } from './fixtures';
 
 const [omelet, soup] = recipes;
 const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
@@ -202,9 +202,8 @@ test('search, filter and list position survive a visit to a recipe and the histo
 });
 
 test('a recipe backup with older history imports and shows in the shared history', async ({ page }) => {
-  await openHome(page);
+  await openBackups(page);
   await expect.poll(() => page.evaluate(() => localStorage.getItem('recipe-book-v1'))).not.toBeNull();
-  await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
   const backup = {
     format: 'recipes-backup', version: 1, exportedAt: '2026-09-01T10:00:00Z',
     recipes: [{ id: 'imported-pie', title: 'Пирог', category: null, time: 60, ingredients: [], steps: ['Испечь.'] }],

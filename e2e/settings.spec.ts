@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test, expect, openHome, settingRow, chooseSetting } from './fixtures';
+import { test, expect, openBackups, openHome, settingRow, chooseSetting } from './fixtures';
 
 async function openSettings(page: Page) {
   await openHome(page);
@@ -99,16 +99,16 @@ test('language switches the whole screen and the shopping preference keeps its v
 test.describe('empty book', () => {
   test.use({ seedRecipes: [] });
   test('disabled recipe export explains that a recipe is needed first', async ({ page }) => {
-    await openSettings(page);
-    await expect(page.getByRole('button', { name: 'Выгрузить в файл', exact: true })).toBeDisabled();
+    await openBackups(page);
+    await expect(page.getByRole('button', { name: 'Выгрузить рецепты', exact: true })).toBeDisabled();
     await expect(page.getByText('Выгрузка станет доступна после первого рецепта.', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Загрузить из файла', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Загрузить рецепты', exact: true })).toBeEnabled();
   });
 });
 
 test('recipe export explanation disappears once the book has recipes', async ({ page }) => {
-  await openSettings(page);
-  await expect(page.getByRole('button', { name: 'Выгрузить в файл', exact: true })).toBeEnabled();
+  await openBackups(page);
+  await expect(page.getByRole('button', { name: 'Выгрузить рецепты', exact: true })).toBeEnabled();
   await expect(page.getByText('Выгрузка станет доступна после первого рецепта.', { exact: true })).toHaveCount(0);
 });
 
@@ -137,4 +137,37 @@ test.describe('narrow screen with large text', () => {
     await page.keyboard.press('Escape');
     await expect(page.getByRole('radio')).toHaveCount(0);
   });
+});
+
+test('sections follow the design and Backups opens one tap from Settings', async ({ page }) => {
+  await openSettings(page);
+  await expect(page.getByText('Monorec / Приложение', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading').filter({ hasText: /^(Предпочтения|Покупки|Данные|Приложение)$/ }))
+    .toHaveText(['Предпочтения', 'Покупки', 'Данные', 'Приложение']);
+  for (const name of ['Знакомство', 'О Monorec', 'Резервные копии']) await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Резервные копии', exact: true }).click();
+  await expect(page).toHaveURL(/\/backup$/);
+  await expect(page.getByRole('tab', { name: 'Настройки', exact: true })).toBeHidden();
+  for (const name of ['Выгрузить рецепты', 'Загрузить рецепты', 'Выгрузить весь профиль', 'Восстановить профиль']) {
+    await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
+  }
+  await expect(page.getByText('Перед восстановлением', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Назад', exact: true }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByRole('tab', { name: 'Настройки', exact: true })).toHaveAttribute('aria-selected', 'true');
+});
+
+test('theme and language changes touch only the settings, never the data', async ({ page }) => {
+  await openSettings(page);
+  const dataKeys = ['recipe-book-v1', 'recipes', 'recipe-meta-v1', 'shopping-list-v1', 'app-onboarding-v1'];
+  const data = () => page.evaluate(keys => Object.fromEntries(keys.map(key => [key, localStorage.getItem(key)])), dataKeys);
+  await expect.poll(async () => (await data())['recipe-book-v1']).not.toBeNull();
+  const before = await data();
+  for (const theme of ['Тёмная', 'Как в системе', 'Светлая']) await chooseSetting(page, 'Оформление', theme);
+  await chooseSetting(page, 'Язык', 'English');
+  await chooseSetting(page, 'Checked items', 'Keep in place');
+  await chooseSetting(page, 'Language', 'Русский');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('app-settings-v1') ?? '{}')))
+    .toMatchObject({ theme: 'light', language: 'ru', shoppingCompletedBehavior: 'keep' });
+  expect(await data()).toEqual(before);
 });

@@ -7,12 +7,29 @@ import choiceOrbit from '../illustrations/choice-orbit.ts';
 import choiceOrbitLight from '../illustrations/choice-orbit-light.ts';
 import chooseWhatToCook from '../illustrations/choose-what-to-cook.ts';
 import chooseWhatToCookLight from '../illustrations/choose-what-to-cook-light.ts';
+import emptyState from '../illustrations/empty-state.ts';
+import emptyStateLight from '../illustrations/empty-state-light.ts';
+import onboarding01 from '../illustrations/onboarding-01-recipes.ts';
+import onboarding01Light from '../illustrations/onboarding-01-recipes-light.ts';
+import onboarding02 from '../illustrations/onboarding-02-discovery.ts';
+import onboarding02Light from '../illustrations/onboarding-02-discovery-light.ts';
+import onboarding03 from '../illustrations/onboarding-03-shopping.ts';
+import onboarding03Light from '../illustrations/onboarding-03-shopping-light.ts';
 import stepByStepCooking from '../illustrations/step-by-step-cooking.ts';
 import stepByStepCookingLight from '../illustrations/step-by-step-cooking-light.ts';
 
-// SHA-256 of the originals: CHOICE-01 and COOK-01 from design/monorec-2.2/asset_manifest.json,
-// their light variants and the Choice orbit as delivered separately per theme.
+// SHA-256 of the originals: ONB-01..03, CHOICE-01, EMPTY-01 and COOK-01 from
+// design/monorec-2.2/asset_manifest.json, their light variants and the Choice orbit
+// as delivered separately per theme.
 const ORIGINALS = {
+  'onboarding_01_recipes.svg': { hash: 'e68ed0234bfc8cd9115de48fe7ea0b4478b35590a581129015396ae3fc95b39b', xml: onboarding01 },
+  'onboarding_01_recipes_light.svg': { hash: 'f517d71335d761b56961d84d4b8e02ba99df63c58fab7de8198e37d4f70ec4fd', xml: onboarding01Light },
+  'onboarding_02_discovery.svg': { hash: '56d15ac2f70f19e4014243eca8b92039c6f059890ab233c082ad3dd2cfb958d4', xml: onboarding02 },
+  'onboarding_02_discovery_light.svg': { hash: '5fabb0659dbfca4dab07b9b7ef1e0a945d72a500100bde8c8568892913b13843', xml: onboarding02Light },
+  'onboarding_03_shopping.svg': { hash: 'f2afc7e06bd30d9965e78caffca52cecaca1d86e38881af0ccdc58fe5e91a673', xml: onboarding03 },
+  'onboarding_03_shopping_light.svg': { hash: '13275176e6aaf664efc6d44b1f1fec4f9b0ab785bd69d5e65a54232243d26595', xml: onboarding03Light },
+  'empty_state.svg': { hash: '3679240fa14da965b5698bee48b0871139d19457fcc6509dbd1f634140910434', xml: emptyState },
+  'empty_state_light.svg': { hash: '497ef80bdc687e3c0a09607428f3b4044914d732c1d365208293f4d62647cd11', xml: emptyStateLight },
   'choice_orbit.svg': { hash: 'd8d70099955715648e6f9b14218aaa624bef05f0bcf85d31afefc15d07b7e618', xml: choiceOrbit },
   'choice_orbit_light.svg': { hash: '9c961ec343fdc3f9e137283c89cfb9c72653279157c7db8cbe7da82f70080a79', xml: choiceOrbitLight },
   'choose_what_to_cook.svg': { hash: 'f902ce9e336ce930d755620f6f8869956f8ac87d70cb8ad944d007300d99b448', xml: chooseWhatToCook },

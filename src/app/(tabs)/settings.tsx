@@ -1,4 +1,3 @@
-import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useRef, useState, type RefObject } from 'react';
 import { Image, ScrollView, Text, View } from 'react-native';
@@ -15,10 +14,9 @@ import {
 import { useOnboarding } from '@/context/onboarding-context';
 import { useToast } from '@/context/toast-context';
 import { OptionMenu, type MenuAnchor } from '@/components/option-menu';
-import { RecipeTransfer } from '@/components/recipe-transfer';
 import { SettingsRow, SettingsSection, type ViewRef } from '@/components/settings-list';
 import { useStyles } from '@/styles';
-import { openFeedback } from '@/utils/feedback';
+import { appVersion as getAppVersion } from '@/utils/app-version';
 
 type MenuKey = 'theme' | 'language' | 'shopping';
 
@@ -41,7 +39,7 @@ function SettingsContent() {
   const styles = useStyles();
   const { restart } = useOnboarding();
   const { showToast } = useToast();
-  const appVersion = Constants.expoConfig?.version ?? '—';
+  const appVersion = getAppVersion();
   const [menu, setMenu] = useState<{ key: MenuKey; anchor: MenuAnchor } | null>(null);
   const themeRow = useRef<ViewRef>(null);
   const languageRow = useRef<ViewRef>(null);
@@ -77,12 +75,15 @@ function SettingsContent() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.settingsContent}>
-          <Text accessibilityRole="header" style={styles.settingsTitle}>{t('settings')}</Text>
+          <View style={styles.settingsTitleBlock}>
+            <Text style={styles.choiceKicker}>{t('settingsKicker')}</Text>
+            <Text accessibilityRole="header" style={styles.settingsTitle}>{t('settings')}</Text>
+          </View>
 
           <SettingsSection title={t('preferences')}>
             <SettingsRow
               ref={themeRow}
-              icon="contrast-outline"
+              icon="moon-outline"
               label={t('appearance')}
               value={labelOf(themes, theme)}
               accessory="menu"
@@ -91,7 +92,7 @@ function SettingsContent() {
             />
             <SettingsRow
               ref={languageRow}
-              icon="language-outline"
+              icon="globe-outline"
               label={t('language')}
               value={labelOf(languages, language)}
               accessory="menu"
@@ -103,7 +104,7 @@ function SettingsContent() {
           <SettingsSection title={t('shoppingBehavior')}>
             <SettingsRow
               ref={shoppingRow}
-              icon="checkmark-circle-outline"
+              icon="checkmark"
               label={t('completedItems')}
               value={labelOf(shoppingBehaviors, shoppingCompletedBehavior)}
               accessory="menu"
@@ -112,21 +113,23 @@ function SettingsContent() {
             />
           </SettingsSection>
 
-          <RecipeTransfer />
+          {/* Backups open their own screen, one tap from Settings (design 3.1, screen 19). */}
+          <SettingsSection title={t('dataSection')}>
+            <SettingsRow
+              icon="document-text-outline"
+              label={t('backups')}
+              accessory="chevron"
+              onPress={() => router.push('/backup')}
+            />
+          </SettingsSection>
 
           <SettingsSection title={t('appSection')}>
+            {/* Replaying shows the introduction again; recipes, groceries, history and settings stay. */}
             <SettingsRow
               icon="book-outline"
               label={t('onboardingReplay')}
               accessory="chevron"
               onPress={() => { void restart().catch(() => showToast(t('onboardingSaveError'))); }}
-            />
-            <SettingsRow
-              icon="chatbubble-outline"
-              label={t('feedback')}
-              accessory="external"
-              role="link"
-              onPress={() => openFeedback(appVersion)}
             />
             <SettingsRow
               icon="information-circle-outline"

@@ -50,6 +50,15 @@ export async function openHome(page: Page) {
   await expect(page.getByRole('button', { name: 'Добавить рецепт', exact: true })).toBeVisible();
 }
 
+// Recipe and profile backups live on their own screen: Settings → Backups.
+export async function openBackups(page: Page) {
+  await openHome(page);
+  await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
+  await page.getByRole('button', { name: 'Резервные копии', exact: true }).click();
+  await expect(page).toHaveURL(/\/backup$/);
+  await expect(page.getByRole('heading', { name: 'Резервные копии', exact: true })).toBeVisible();
+}
+
 export async function addItem(page: Page, text: string) {
   await page.getByPlaceholder('Добавить продукт', { exact: true }).fill(text);
   await page.getByRole('button', { name: 'Добавить продукт', exact: true }).click();

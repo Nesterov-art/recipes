@@ -164,7 +164,13 @@ function createStyles(COLORS: AppColors, fontScale: number) {
   choiceActive: { backgroundColor: COLORS.accent },
   settingsContent: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingHorizontal: 16 },
   settingsTitle: { fontSize: fs(34), lineHeight: fs(40), fontWeight: '700', color: COLORS.text },
-  settingLabel: { fontSize: fs(13), lineHeight: fs(18), color: COLORS.muted, marginTop: 24, marginBottom: 8 },
+  settingLabel: { fontSize: fs(12), lineHeight: fs(16), fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', color: COLORS.muted, marginTop: 24, marginBottom: 10 },
+  settingsTitleBlock: { gap: 8 },
+  backupInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 20, padding: 16, borderRadius: 20, backgroundColor: COLORS.card },
+  backupInfoText: { flex: 1, fontSize: fs(15), lineHeight: fs(21), color: COLORS.muted },
+  restoreWarning: { marginTop: 24, paddingLeft: 14, paddingVertical: 4, borderLeftWidth: 3, borderLeftColor: COLORS.danger, gap: 6 },
+  restoreWarningTitle: { fontSize: fs(15), lineHeight: fs(20), fontWeight: '700', color: COLORS.text },
+  restoreWarningText: { fontSize: fs(15), lineHeight: fs(21), color: COLORS.muted },
   settingsHint: { fontSize: fs(15), lineHeight: fs(20), color: COLORS.muted, marginTop: 8 },
   settingsCard: { backgroundColor: COLORS.card, borderRadius: 24, overflow: 'hidden' },
   settingsRow: {
@@ -204,7 +210,6 @@ function createStyles(COLORS: AppColors, fontScale: number) {
   aboutName: { marginTop: 16, fontSize: fs(28), lineHeight: fs(34), fontWeight: '700', color: COLORS.text, textAlign: 'center' },
   aboutVersion: { marginTop: 4, fontSize: fs(15), lineHeight: fs(20), color: COLORS.muted, textAlign: 'center' },
   aboutDescription: { marginTop: 20, fontSize: fs(17), lineHeight: fs(26), color: COLORS.text, textAlign: 'center' },
-  aboutNote: { marginTop: 32, fontSize: fs(15), lineHeight: fs(20), color: COLORS.muted, textAlign: 'center' },
   // With large text the actions wrap below the title instead of breaking the word.
   homeHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   homeHeaderText: { flexShrink: 0, maxWidth: '100%' },

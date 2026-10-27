@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import { readFile } from 'node:fs/promises';
-import { test, expect, openHome, shopping } from './fixtures';
+import { test, expect, openBackups, openHome, shopping } from './fixtures';
 
 const keys = ['recipe-book-v1', 'recipes', 'recipe-meta-v1', 'shopping-list-v1', 'app-settings-v1', 'app-onboarding-v1'];
 const profile = {
@@ -18,11 +18,11 @@ const file = () => ({ format: 'recipes-profile-backup', version: 1, exportedAt: 
 const normalized = () => ({ ...profile, recipeMeta: { 'backup-recipe': { ...profile.recipeMeta['backup-recipe'], cookings: [...profile.recipeMeta['backup-recipe'].cookings].reverse() } } });
 const rawProfile = (page: import('@playwright/test').Page) => page.evaluate(keys => Object.fromEntries(keys.map(key => [key, localStorage.getItem(key)])), keys);
 async function settings(page: import('@playwright/test').Page) {
-  await openHome(page); await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
+  await openBackups(page);
 }
 async function select(page: import('@playwright/test').Page, value: unknown, restore = true) {
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: restore ? 'Восстановить профиль из файла' : 'Загрузить из файла', exact: true }).click();
+  await page.getByRole('button', { name: restore ? 'Восстановить профиль' : 'Загрузить рецепты', exact: true }).click();
   await (await chooser).setFiles({ name: 'profile.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(value)) });
 }
 async function confirm(page: import('@playwright/test').Page) {
