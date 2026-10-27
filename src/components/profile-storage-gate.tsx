@@ -1,20 +1,21 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { type PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react';
 import { StorageGuard } from '@/components/storage-guard';
-import { PROFILE_KEYS, recoverProfile } from '@/utils/profile-transaction';
-import { PROFILE_JOURNAL_KEY, refreshStores, subscribeProfileRecovery } from '@/utils/storage-coordination';
+import { appStorage, PROFILE_STORAGE_KEYS, recoverAppStorage } from '@/utils/app-storage';
+import { PROFILE_JOURNAL_KEY, PROFILE_JOURNAL_V2_KEY, refreshStores, subscribeProfileRecovery } from '@/utils/storage-coordination';
 
 export function ProfileStorageGate({ children }: PropsWithChildren) {
   const [loaded, setLoaded] = useState(false);
   const [issue, setIssue] = useState<'profile' | undefined>();
   const [saving, setSaving] = useState(true);
   const raw = useRef<string | null>(null);
+  const rawV2 = useRef<string | null>(null);
   const originals = useRef<Record<string, { raw: string | null; error?: boolean }>>({});
   const recovering = useRef(false);
   const captureRecovery = useCallback(async () => {
-    try { raw.current = await AsyncStorage.getItem(PROFILE_JOURNAL_KEY); } catch { /* Keep last readable journal. */ }
-    originals.current = Object.fromEntries(await Promise.all(PROFILE_KEYS.map(async key => {
-      try { return [key, { raw: await AsyncStorage.getItem(key) }] as const; }
+    try { raw.current = await appStorage.getItem(PROFILE_JOURNAL_KEY); } catch { /* Keep last readable journal. */ }
+    try { rawV2.current = await appStorage.getItem(PROFILE_JOURNAL_V2_KEY); } catch { /* Same for the native journal. */ }
+    originals.current = Object.fromEntries(await Promise.all(PROFILE_STORAGE_KEYS.map(async key => {
+      try { return [key, { raw: await appStorage.getItem(key) }] as const; }
       catch { return [key, { raw: null, error: true }] as const; }
     })));
   }, []);
@@ -23,7 +24,7 @@ export function ProfileStorageGate({ children }: PropsWithChildren) {
     recovering.current = true; setSaving(true);
     try {
       await captureRecovery();
-      await recoverProfile(AsyncStorage);
+      await recoverAppStorage();
       await refreshStores();
       setLoaded(true); setIssue(undefined);
       return true;
@@ -43,6 +44,9 @@ export function ProfileStorageGate({ children }: PropsWithChildren) {
   }, [captureRecovery, retry]);
   return <StorageGuard loaded={loaded} issue={issue} saving={saving} canRecover={false} store={{
     retry, reread: async () => { await retry(); }, recover: retry,
-    exportRecovery: () => JSON.stringify({ format: 'recipes-profile-recovery', version: 1, journal: raw.current, entries: originals.current }),
+    exportRecovery: () => JSON.stringify({
+      format: 'recipes-profile-recovery', version: 1, journal: raw.current,
+      ...(rawV2.current !== null ? { journalV2: rawV2.current } : {}), entries: originals.current,
+    }),
   }}>{children}</StorageGuard>;
 }

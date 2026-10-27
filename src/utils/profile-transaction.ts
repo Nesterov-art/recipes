@@ -5,7 +5,7 @@ import { assertProfileReady, PROFILE_JOURNAL_KEY, requireProfileRecovery, withPr
 
 export const PROFILE_KEYS = ['recipe-book-v1', 'recipes', 'recipe-meta-v1', 'shopping-list-v1', 'app-settings-v1', 'app-onboarding-v1'] as const;
 export const LAST_BACKUP_KEY = 'profile-backup-last-success-v1';
-type RawProfile = Record<typeof PROFILE_KEYS[number], string | null>;
+export type RawProfile = Record<typeof PROFILE_KEYS[number], string | null>;
 export type ProfileStorage = StorageAdapter & { removeItem: (key: string) => Promise<void> };
 type Journal = {
   format: 'profile-restore'; version: 1; id: string;
@@ -13,13 +13,13 @@ type Journal = {
   before: RawProfile; after: RawProfile;
 };
 export class ProfileRestoreError extends Error {
-  code: 'conflict' | 'write' | 'recovery';
+  code: 'conflict' | 'write' | 'recovery' | 'space';
   constructor(code: ProfileRestoreError['code']) { super(code); this.code = code; }
 }
 async function readRaw(storage: StorageAdapter): Promise<RawProfile> {
   return Object.fromEntries(await Promise.all(PROFILE_KEYS.map(async key => [key, await storage.getItem(key)]))) as RawProfile;
 }
-function decodeRaw(raw: RawProfile): Profile {
+export function decodeRaw(raw: RawProfile): Profile {
   const entries = Object.fromEntries(PROFILE_KEYS.map(key => [key, { raw: raw[key] }]));
   const book = bookConfig().decode(entries);
   const shopping = shoppingConfig.decode(entries);

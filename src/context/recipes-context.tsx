@@ -18,6 +18,7 @@ import {
 } from '@/constants/recipes';
 import { emptyRecipeMeta } from '@/utils/recipes';
 import { mergeRecipeBackup, type RecipeBackup } from '@/utils/recipe-backup';
+import { LEGACY_MIRRORS } from '@/utils/app-storage';
 import { bookConfig } from '@/utils/storage-models';
 import { useSafeStore } from '@/hooks/use-safe-store';
 import { StorageGuard } from '@/components/storage-guard';
@@ -59,7 +60,7 @@ export function useRecipes() {
 export function RecipesProvider({ children }: PropsWithChildren) {
   const { language, t, colors } = useSettings();
   const { showToast } = useToast();
-  const storage = useSafeStore(bookConfig);
+  const storage = useSafeStore(() => bookConfig(LEGACY_MIRRORS));
   const { store, loaded, data: { recipes, recipeMeta } } = storage;
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<RecipeFilter>('Все');

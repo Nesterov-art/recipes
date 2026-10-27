@@ -15,7 +15,8 @@ const parsed = (entry: ReadEntry) => {
   catch { return { value: undefined, issue: entry.error ? 'read' as const : 'invalid' as const }; }
 };
 
-export function bookConfig(): StoreConfig<Book> {
+// Mirrors serve older PWA clients on the same origin; native builds have no older clients.
+export function bookConfig(mirrors = true): StoreConfig<Book> {
   let safeMirrors: string[] = [];
   return {
     key: 'recipe-book-v1', keys: ['recipe-book-v1', 'recipes', 'recipe-meta-v1'],
@@ -27,7 +28,7 @@ export function bookConfig(): StoreConfig<Book> {
       const meta = parsed(entries['recipe-meta-v1']);
       const validRecipes = Array.isArray(recipes.value) && recipes.value.every(isRecipe);
       const validMeta = isRecipeMetaById(meta.value);
-      safeMirrors = [
+      safeMirrors = !mirrors ? [] : [
         ...(!recipes.issue && (recipes.value === undefined || validRecipes) ? ['recipes'] : []),
         ...(!meta.issue && (meta.value === undefined || validMeta) ? ['recipe-meta-v1'] : []),
       ];

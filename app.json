@@ -55,7 +55,13 @@
       ],
       "expo-status-bar",
       "expo-font",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "./plugins/with-async-storage-size",
+        {
+          "sizeMB": 32
+        }
+      ]
     ],
     "extra": {
       "eas": {

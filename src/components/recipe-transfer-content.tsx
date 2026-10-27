@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { BackupFilePicker, saveBackupFile, type BackupPickerHandle, type PickedBackup } from '@/components/backup-files';
@@ -7,13 +6,14 @@ import { useRecipes } from '@/context/recipes-context';
 import { useSettings } from '@/context/settings-context';
 import { useToast } from '@/context/toast-context';
 import { useStyles } from '@/styles';
+import { appStorage, captureAppProfile, restoreAppProfile } from '@/utils/app-storage';
 import { BackupError, mergeRecipeBackup, serializeRecipeBackup } from '@/utils/recipe-backup';
 import { LARGE_PROFILE_BYTES, parseBackupFile, recipesFromBackup, serializeProfileBackup, utf8Length } from '@/utils/profile-backup';
-import { captureProfile, LAST_BACKUP_KEY, ProfileRestoreError, restoreProfile } from '@/utils/profile-transaction';
+import { LAST_BACKUP_KEY, ProfileRestoreError } from '@/utils/profile-transaction';
 import { assertProfileReady, refreshStores, settleStores, withProfileLock } from '@/utils/storage-coordination';
 
 type Mode = 'add' | 'restore';
-type Preview = { name: string; backup: ReturnType<typeof parseBackupFile>; mode: Mode; bytes: number; current?: Awaited<ReturnType<typeof captureProfile>> };
+type Preview = { name: string; backup: ReturnType<typeof parseBackupFile>; mode: Mode; bytes: number; current?: Awaited<ReturnType<typeof captureAppProfile>> };
 
 export function RecipeTransferContent() {
   const { recipes, recipeMeta, importRecipes } = useRecipes();
@@ -33,12 +33,12 @@ export function RecipeTransferContent() {
   const fs = (size: number) => Math.round(size * fontScale);
   useEffect(() => {
     let active = true;
-    void AsyncStorage.getItem(LAST_BACKUP_KEY).then(value => { if (active) setLastBackup(value); }).catch(() => {});
+    void appStorage.getItem(LAST_BACKUP_KEY).then(value => { if (active) setLastBackup(value); }).catch(() => {});
     return () => { active = false; };
   }, []);
   function report(err: unknown, exporting = false) {
     setError(t(err instanceof BackupError ? err.code === 'size' ? 'backupSizeError' : err.code === 'version' ? 'backupVersionError' : 'backupInvalidError'
-      : err instanceof ProfileRestoreError ? err.code === 'conflict' ? 'profileConflict' : err.code === 'recovery' ? 'profileRecoveryError' : 'profileRestoreError'
+      : err instanceof ProfileRestoreError ? err.code === 'conflict' ? 'profileConflict' : err.code === 'recovery' ? 'profileRecoveryError' : err.code === 'space' ? 'profileSpaceError' : 'profileRestoreError'
       : exporting ? 'backupExportError' : 'backupImportError'));
   }
   async function exportFile(full: boolean) {
@@ -46,13 +46,13 @@ export function RecipeTransferContent() {
     working.current = true; setBusy(true); setError('');
     try {
       await settleStores();
-      const text = full ? serializeProfileBackup((await captureProfile(AsyncStorage)).profile) : serializeRecipeBackup(recipes, recipeMeta);
+      const text = full ? serializeProfileBackup((await captureAppProfile()).profile) : serializeRecipeBackup(recipes, recipeMeta);
       setLargeExport(utf8Length(text) > LARGE_PROFILE_BYTES);
       if (!await saveBackupFile(text, `${full ? 'recipes-profile' : 'recipes'}-${new Date().toISOString().replace(/[:.]/g, '-')}.json`)) return;
       if (full) {
         const date = new Date().toISOString();
         try {
-          await withProfileLock(async () => { await assertProfileReady(AsyncStorage); await AsyncStorage.setItem(LAST_BACKUP_KEY, date); });
+          await withProfileLock(async () => { await assertProfileReady(appStorage); await appStorage.setItem(LAST_BACKUP_KEY, date); });
           setLastBackup(date);
         } catch { setError(t('profileDateError')); }
       }
@@ -70,7 +70,7 @@ export function RecipeTransferContent() {
       const backup = parseBackupFile(file.text);
       if (mode.current === 'restore' && backup.format !== 'recipes-profile-backup') { setError(t('profileRequiresFull')); return; }
       await settleStores();
-      const current = mode.current === 'restore' ? await captureProfile(AsyncStorage) : undefined;
+      const current = mode.current === 'restore' ? await captureAppProfile() : undefined;
       setPreview({ name: file.name, backup, mode: mode.current, bytes: utf8Length(file.text), current });
     } catch (err) { report(err); }
     finally { setBusy(false); working.current = false; }
@@ -85,7 +85,7 @@ export function RecipeTransferContent() {
         });
       } else if (preview.backup.format === 'recipes-profile-backup' && preview.current) {
         await settleStores();
-        await restoreProfile(AsyncStorage, preview.backup.profile, preview.current.raw);
+        await restoreAppProfile(preview.backup.profile, preview.current.raw);
         await refreshStores();
         setPreview(null); showToast(t('profileRestored'));
       }

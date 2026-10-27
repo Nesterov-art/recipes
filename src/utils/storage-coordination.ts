@@ -1,6 +1,7 @@
 import type { StorageAdapter } from './safe-storage.ts';
 
 export const PROFILE_JOURNAL_KEY = 'profile-restore-v1';
+export const PROFILE_JOURNAL_V2_KEY = 'profile-restore-v2';
 let tail: Promise<unknown> = Promise.resolve();
 const recoveryListeners = new Set<() => void>();
 export class ProfileRecoveryRequired extends Error {}
@@ -19,16 +20,20 @@ export function subscribeProfileRecovery(listener: () => void) {
   recoveryListeners.add(listener);
   return () => { recoveryListeners.delete(listener); };
 }
-export async function assertProfileReady(storage: StorageAdapter) {
-  const raw = await storage.getItem(PROFILE_JOURNAL_KEY);
-  if (raw === null) return;
+export function journalSettled(raw: string | null, version: 1 | 2) {
+  if (raw === null) return true;
   try {
     const value = JSON.parse(raw);
-    if (value?.format === 'profile-restore' && value.version === 1
-      && ['committed', 'rolledBack'].includes(value.status)) return;
-  } catch { /* Invalid journals must never be treated as an empty profile. */ }
-  requireProfileRecovery();
-  throw new ProfileRecoveryRequired('Profile recovery must finish before accessing data');
+    return value?.format === 'profile-restore' && value.version === version && ['committed', 'rolledBack'].includes(value.status);
+  } catch { return false; } // Invalid journals must never be treated as an empty profile.
+}
+export async function assertProfileReady(storage: StorageAdapter) {
+  // v1 is the web journal and a legacy one on native; v2 is written only by native restores.
+  for (const [key, version] of [[PROFILE_JOURNAL_KEY, 1], [PROFILE_JOURNAL_V2_KEY, 2]] as const) {
+    if (journalSettled(await storage.getItem(key), version)) continue;
+    requireProfileRecovery();
+    throw new ProfileRecoveryRequired('Profile recovery must finish before accessing data');
+  }
 }
 
 type RegisteredStore = { load: () => Promise<unknown>; whenIdle: () => Promise<unknown>; healthy: () => boolean };
