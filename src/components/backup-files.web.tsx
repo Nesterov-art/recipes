@@ -1,5 +1,6 @@
 import { useImperativeHandle, useRef } from 'react';
 import type { BackupPickerProps } from './backup-files';
+import type { BackupKind, FolderSaveResult, ShareResult } from '@/utils/folder-export';
 
 export function BackupFilePicker({ ref, onFile, onError }: BackupPickerProps) {
   const input = useRef<HTMLInputElement>(null);
@@ -9,7 +10,12 @@ export function BackupFilePicker({ ref, onFile, onError }: BackupPickerProps) {
     if (file) void file.text().then(text => onFile({ name: file.name, text })).catch(onError);
   }} />;
 }
-export async function saveBackupFile(text: string, name: string): Promise<boolean> {
+// The web keeps its download/Web Share behaviour; folder saving is an Android action.
+export const canSaveToFolder = false;
+export function saveBackupToFolder(_text: string, _kind: BackupKind): Promise<FolderSaveResult> {
+  return Promise.reject(new Error('Saving to a folder is not available on the web'));
+}
+export async function shareBackupFile(text: string, name: string): Promise<ShareResult> {
   try {
     const file = new File([text], name, { type: 'application/json' });
     if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file] });
@@ -18,9 +24,9 @@ export async function saveBackupFile(text: string, name: string): Promise<boolea
       link.href = url; link.download = file.name; document.body.appendChild(link);
       try { link.click(); } finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60_000); }
     }
-    return true;
+    return 'saved';
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') return false;
+    if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled';
     throw error;
   }
 }

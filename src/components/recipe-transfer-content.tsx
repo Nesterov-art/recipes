@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { BackupFilePicker, saveBackupFile, type BackupPickerHandle, type PickedBackup } from '@/components/backup-files';
+import { Platform, Pressable, Text, View } from 'react-native';
+import {
+  BackupFilePicker, canSaveToFolder, saveBackupToFolder, shareBackupFile, type BackupPickerHandle, type PickedBackup,
+} from '@/components/backup-files';
 import { SettingsHint, SettingsRow, SettingsSection } from '@/components/settings-list';
 import { useRecipes } from '@/context/recipes-context';
 import { useSettings } from '@/context/settings-context';
@@ -11,8 +13,10 @@ import { BackupError, mergeRecipeBackup, serializeRecipeBackup } from '@/utils/r
 import { LARGE_PROFILE_BYTES, parseBackupFile, recipesFromBackup, serializeProfileBackup, utf8Length } from '@/utils/profile-backup';
 import { LAST_BACKUP_KEY, ProfileRestoreError } from '@/utils/profile-transaction';
 import { assertProfileReady, refreshStores, settleStores, withProfileLock } from '@/utils/storage-coordination';
+import { backupFileName, exportOutcome, FolderSaveError, type ShareResult } from '@/utils/folder-export';
 
 type Mode = 'add' | 'restore';
+type Target = 'share' | 'folder';
 type Preview = { name: string; backup: ReturnType<typeof parseBackupFile>; mode: Mode; bytes: number; current?: Awaited<ReturnType<typeof captureAppProfile>> };
 
 export function RecipeTransferContent() {
@@ -37,25 +41,39 @@ export function RecipeTransferContent() {
     return () => { active = false; };
   }, []);
   function report(err: unknown, exporting = false) {
-    setError(t(err instanceof BackupError ? err.code === 'size' ? 'backupSizeError' : err.code === 'version' ? 'backupVersionError' : 'backupInvalidError'
+    setError(t(err instanceof BackupError ? err.code === 'size' ? exporting && Platform.OS !== 'web' ? 'backupExportSizeError' : 'backupSizeError' : err.code === 'version' ? 'backupVersionError' : 'backupInvalidError'
       : err instanceof ProfileRestoreError ? err.code === 'conflict' ? 'profileConflict' : err.code === 'recovery' ? 'profileRecoveryError' : err.code === 'space' ? 'profileSpaceError' : 'profileRestoreError'
+      : err instanceof FolderSaveError ? err.code === 'space' ? 'backupSaveSpaceError' : 'backupSaveError'
       : exporting ? 'backupExportError' : 'backupImportError'));
   }
-  async function exportFile(full: boolean) {
+  async function recordBackupDate() {
+    const date = new Date().toISOString();
+    try {
+      await withProfileLock(async () => { await assertProfileReady(appStorage); await appStorage.setItem(LAST_BACKUP_KEY, date); });
+      setLastBackup(date);
+    } catch { setError(t('profileDateError')); }
+  }
+  async function exportFile(full: boolean, target: Target) {
     if (working.current) return;
     working.current = true; setBusy(true); setError('');
     try {
       await settleStores();
       const text = full ? serializeProfileBackup((await captureAppProfile()).profile) : serializeRecipeBackup(recipes, recipeMeta);
       setLargeExport(utf8Length(text) > LARGE_PROFILE_BYTES);
-      if (!await saveBackupFile(text, `${full ? 'recipes-profile' : 'recipes'}-${new Date().toISOString().replace(/[:.]/g, '-')}.json`)) return;
-      if (full) {
-        const date = new Date().toISOString();
-        try {
-          await withProfileLock(async () => { await assertProfileReady(appStorage); await appStorage.setItem(LAST_BACKUP_KEY, date); });
-          setLastBackup(date);
-        } catch { setError(t('profileDateError')); }
+      const kind = full ? 'profile' : 'recipes';
+      let result: ShareResult;
+      if (target === 'folder') {
+        const saved = await saveBackupToFolder(text, kind);
+        result = saved.status;
+        if (saved.status === 'saved') showToast(t('backupSavedToFolder', { name: saved.name }));
+      } else {
+        // The web keeps its established download names; native files get readable ones.
+        const name = Platform.OS === 'web' ? `${full ? 'recipes-profile' : 'recipes'}-${new Date().toISOString().replace(/[:.]/g, '-')}.json` : backupFileName(kind);
+        result = await shareBackupFile(text, name);
+        if (exportOutcome(result).message === 'handedOff') showToast(t('backupHandedOff'));
       }
+      // Only a write known to have finished counts as the last export.
+      if (full && exportOutcome(result).recordDate) await recordBackupDate();
     } catch (err) { report(err, true); }
     finally { setBusy(false); working.current = false; }
   }
@@ -128,18 +146,27 @@ export function RecipeTransferContent() {
       <SettingsHint>{t('backupHint')}</SettingsHint>
       {preview?.mode === 'add' && previewCard}
     </>}>
-      <SettingsRow label={t('backupExport')} icon="download-outline" onPress={() => void exportFile(false)} disabled={busy || recipes.length === 0}
-        hint={recipes.length === 0 ? t('backupExportEmpty') : undefined} />
+      {canSaveToFolder ? [
+        <SettingsRow key="folder" label={t('saveToFolder')} spokenLabel={t('saveRecipesToFolder')} icon="folder-outline" onPress={() => void exportFile(false, 'folder')}
+          disabled={busy || recipes.length === 0} hint={recipes.length === 0 ? t('backupExportEmpty') : undefined} />,
+        <SettingsRow key="share" label={t('share')} spokenLabel={t('shareRecipes')} icon="share-outline" onPress={() => void exportFile(false, 'share')}
+          disabled={busy || recipes.length === 0} hint={recipes.length === 0 ? t('backupExportEmpty') : undefined} />,
+      ] : <SettingsRow label={t('backupExport')} icon="download-outline" onPress={() => void exportFile(false, 'share')} disabled={busy || recipes.length === 0}
+        hint={recipes.length === 0 ? t('backupExportEmpty') : undefined} />}
       <SettingsRow label={t('backupImport')} icon="cloud-upload-outline" onPress={() => chooseFile('add')} disabled={busy} />
     </SettingsSection>
     <SettingsSection title={t('profileTitle')} footer={<>
       <SettingsHint>{t('profileLastBackup', { date: lastBackup && Number.isFinite(Date.parse(lastBackup)) ? new Date(lastBackup).toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US') : t('profileNever') })}</SettingsHint>
       <SettingsHint>{t('profileHint')}</SettingsHint>
+      {canSaveToFolder && <SettingsHint>{t('saveToFolderHint')}</SettingsHint>}
       {largeExport && <SettingsHint>{t('profileLarge')}</SettingsHint>}
       {preview?.mode === 'restore' && previewCard}
       {!!error && <SettingsHint role="alert">{error}</SettingsHint>}
     </>}>
-      <SettingsRow label={t('profileExport')} icon="download-outline" onPress={() => void exportFile(true)} disabled={busy} />
+      {canSaveToFolder ? [
+        <SettingsRow key="folder" label={t('saveToFolder')} spokenLabel={t('saveProfileToFolder')} icon="folder-outline" onPress={() => void exportFile(true, 'folder')} disabled={busy} />,
+        <SettingsRow key="share" label={t('share')} spokenLabel={t('shareProfile')} icon="share-outline" onPress={() => void exportFile(true, 'share')} disabled={busy} />,
+      ] : <SettingsRow label={t('profileExport')} icon="download-outline" onPress={() => void exportFile(true, 'share')} disabled={busy} />}
       <SettingsRow label={t('profileRestore')} icon="refresh-outline" onPress={() => chooseFile('restore')} disabled={busy} />
     </SettingsSection>
   </>;

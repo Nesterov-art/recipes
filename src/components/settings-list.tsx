@@ -51,18 +51,20 @@ type SettingsRowProps = {
   disabled?: boolean;
   // Read by screen readers after the label, e.g. why the row is disabled.
   hint?: string;
+  // Replaces the spoken label when the visible one relies on its section, e.g. "Save to folder".
+  spokenLabel?: string;
   expanded?: boolean;
   role?: 'button' | 'link';
   ref?: Ref<ViewRef>;
 };
 
-export function SettingsRow({ icon, label, detail, value, accessory, onPress, disabled = false, hint, expanded, role = 'button', ref }: SettingsRowProps) {
+export function SettingsRow({ icon, label, detail, value, accessory, onPress, disabled = false, hint, spokenLabel, expanded, role = 'button', ref }: SettingsRowProps) {
   const styles = useStyles();
   const { colors, fontScale } = useSettings();
   // On web the app scales text itself (fontScale); natively the OS does (systemFontScale).
   const { fontScale: systemFontScale } = useWindowDimensions();
   const stacked = !!value && fontScale * systemFontScale >= STACKED_FONT_SCALE;
-  const accessibilityLabel = `${label}${detail ? `, ${detail}` : ''}${value ? `: ${value}` : ''}`;
+  const accessibilityLabel = `${spokenLabel ?? label}${detail ? `, ${detail}` : ''}${value ? `: ${value}` : ''}`;
   const content = <>
     <View style={styles.settingsRowIcon}><Ionicons name={icon} size={20} color={colors.text} /></View>
     <View style={[styles.settingsRowBody, stacked && styles.settingsRowBodyStacked]}>

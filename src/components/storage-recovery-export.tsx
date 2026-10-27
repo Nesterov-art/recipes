@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, Text } from 'react-native';
 import type { AppColors } from '@/constants/theme';
 import type { Translate } from '@/constants/i18n';
-import { saveBackupFile } from '@/components/backup-files';
+import { shareBackupFile } from '@/components/backup-files';
 import { appStorage, PROFILE_STORAGE_KEYS } from '@/utils/app-storage';
 import { captureEmergency, emergencyComplete, emergencyDiagnostic, type EmergencyCapture } from '@/utils/emergency-export';
 import { serializeProfileBackup } from '@/utils/profile-backup';
@@ -24,7 +24,7 @@ export function StorageRecoveryExport({ payload, colors, t }: RecoveryExportProp
   const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
   async function share(text: () => string, name: string) {
     setMessage(null);
-    try { await saveBackupFile(text(), name); setMessage('saved'); } catch { setMessage('error'); }
+    try { await shareBackupFile(text(), name); setMessage('saved'); } catch { setMessage('error'); }
   }
   const complete = emergencyComplete(capture);
   const unreadable = Object.keys(capture.errors);
