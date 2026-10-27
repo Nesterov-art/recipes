@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Рецепты",
+    "name": "Monorec",
     "slug": "recipes",
-    "scheme": "recipes",
+    "scheme": "monorec",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,16 +13,27 @@
         "light": "./assets/icon-light.png",
         "dark": "./assets/icon.png"
       },
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.neyroshi.monorec",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.neyroshi.monorec",
       "adaptiveIcon": {
         "backgroundColor": "#202321",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ]
     },
     "web": {
+      "name": "Рецепты",
       "bundler": "metro",
       "output": "single",
       "favicon": "./assets/favicon.png"
