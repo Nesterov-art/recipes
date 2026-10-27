@@ -1,3 +1,5 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useFonts } from 'expo-font';
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Stack } from 'expo-router';
@@ -19,8 +21,13 @@ function RootNavigator() {
   const { loaded: recipesLoaded } = useRecipes();
   const { loaded: shoppingLoaded } = useShopping();
   const { colors, loaded: settingsLoaded } = useSettings();
+  // Icons load their font themselves on mount and leave a failed load unhandled, e.g.
+  // when the page is left mid-request on web. Loading it once here handles the error,
+  // and icons mounted afterwards find the font in place. A failed load still renders.
+  const [iconsLoaded, iconsError] = useFonts(Ionicons.font);
 
   if (!recipesLoaded || !settingsLoaded || !shoppingLoaded) return null;
+  if (!iconsLoaded && !iconsError) return null;
 
   if (!completed) return <Onboarding />;
 

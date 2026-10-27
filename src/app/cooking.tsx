@@ -221,7 +221,9 @@ function CookingContent() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    // Android draws edge to edge and no longer resizes the window for the keyboard,
+    // so both platforms make room here.
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'web' ? undefined : 'padding'}>
       <ScrollView
         ref={scroll}
         style={{ flex: 1 }}

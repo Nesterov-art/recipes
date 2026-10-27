@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRef } from 'react';
 import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { MONOREC_THEMES } from '@/constants/theme';
 import { useRecipes } from '@/context/recipes-context';
-import { useSettings } from '@/context/settings-context';
+import { PaletteProvider, useSettings } from '@/context/settings-context';
+import { useFittedTitle } from '@/hooks/use-fitted-title';
 import { useStyles } from '@/styles';
 import { confirmDelete } from '@/utils/confirm-delete';
 import { cookingSteps } from '@/utils/cooking';
@@ -16,22 +17,36 @@ import {
   plural,
 } from '@/utils/recipes';
 
+// Same threshold as the recipe list: from here the stats read better as rows.
+const STACKED_FONT_SCALE = 1.35;
+
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+// Ingredients are written as "Name — amount"; the amount goes to the right edge.
+// Any other line is shown whole.
+function splitIngredient(text: string) {
+  const index = text.indexOf(' — ');
+  return index > 0 ? { name: text.slice(0, index), amount: text.slice(index + 3) } : { name: text, amount: '' };
+}
+
 export default function RecipeScreen() {
+  return <PaletteProvider palette={MONOREC_THEMES}><RecipeContent /></PaletteProvider>;
+}
+
+function RecipeContent() {
   const insets = useSafeAreaInsets();
   const effectiveBottomInset = Platform.OS === 'web' ? 0 : insets.bottom;
-  const { colors, language, t } = useSettings();
+  const { colors, fontScale, language, t } = useSettings();
   const styles = useStyles();
-  const params = useLocalSearchParams<{ id?: string | string[]; fromRandom?: string | string[] }>();
+  const params = useLocalSearchParams<{ id?: string | string[] }>();
   const id = first(params.id);
-  const fromRandom = first(params.fromRandom) === 'true';
-  const { recipes, visible, deleteRecipe, getRecipeMeta, pickRandom, recordCooking, toggleFavorite } = useRecipes();
+  const { recipes, deleteRecipe, getRecipeMeta, recordCooking, toggleFavorite } = useRecipes();
   const selected = recipes.find((recipe) => recipe.id === id);
   const deleting = useRef(false);
   const recording = useRef(false);
+  const titleStyle = useFittedTitle(selected?.title ?? '', styles.recipeTitle.fontSize);
 
   if (!selected) return <View style={styles.screen} />;
 
@@ -46,14 +61,15 @@ export default function RecipeScreen() {
     deleting.current = true;
     try {
       if (await confirmDelete(t('deleteQuestion'), selectedTitle, t('delete'), t('cancel'))) {
-        await deleteRecipe(selectedId, () => router.back());
+        // A recipe opened from a direct link has nothing to go back to: land on the book.
+        await deleteRecipe(selectedId, () => (router.canGoBack() ? router.back() : router.replace('/recipes')));
       }
     } finally {
       deleting.current = false;
     }
   }
 
-  // "I cooked this" records one entry right away; a note can be left at the end of step-by-step cooking.
+  // "I cooked this" (recipes without steps only) records one entry right away.
   async function handleCooked() {
     if (recording.current) return;
     recording.current = true;
@@ -61,228 +77,217 @@ export default function RecipeScreen() {
     recording.current = false;
   }
 
-  function handleAnother() {
-    const recipe = pickRandom();
-    if (recipe) {
-      router.replace({ pathname: '/recipe/[id]', params: { id: recipe.id, fromRandom: 'true' } });
-    }
-  }
-
   function handleAddToShopping() {
     router.push({ pathname: '/shopping-select', params: { id: selectedId } });
   }
 
   const ingredientCount = selected.ingredients.length;
-  const canCook = cookingSteps(selected.steps).length > 0;
+  const steps = cookingSteps(selected.steps);
+  const canCook = steps.length > 0;
+  const category = selected.category ? categoryLabel(selected.category, t) : null;
+  const stacked = fontScale >= STACKED_FONT_SCALE;
+  const stats: { label: string; value: string | number; unit?: string }[] = [
+    { label: t('time'), value: selected.time, unit: t('minuteShort') },
+    { label: t('composition'), value: ingredientCount, unit: t('itemsShort') },
+    ...(category ? [{ label: t('category'), value: category }] : []),
+  ];
+  const cookedTimes = plural(language, meta.cookings.length, t('cookedTimesOne'), t('cookedTimesFew'), t('cookedTimesMany'));
+
+  const historyCard = (
+    <>
+      <Ionicons name="time-outline" size={20} color={colors.muted} />
+      <View style={styles.recipeHistoryBody}>
+        {lastCooking ? (
+          <>
+            <Text style={styles.recipeHistoryText}>{t('cookedLabel', { count: meta.cookings.length, times: cookedTimes })}</Text>
+            <Text style={styles.recipeHistoryMuted}>{t('lastCooked', { date: cookingDateLabel(lastCooking.cookedAt, language) })}</Text>
+            {lastNotedCooking?.note && (
+              <>
+                <Text style={styles.recipeHistoryNoteLabel}>{t('lastNote')}</Text>
+                <Text style={styles.recipeHistoryNote}>«{lastNotedCooking.note}»</Text>
+              </>
+            )}
+          </>
+        ) : (
+          <Text style={styles.recipeHistoryMuted}>{t('neverCooked')}</Text>
+        )}
+      </View>
+      {lastCooking && <Ionicons name="chevron-forward" size={18} color={colors.muted} />}
+    </>
+  );
 
   return (
     <View style={styles.screen}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingTop: insets.top + 8,
-          paddingHorizontal: 16,
-          paddingBottom: effectiveBottomInset + (fromRandom ? 120 : 40),
-        }}
+        contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: effectiveBottomInset + 40 }}
       >
-        <View style={styles.topBar}>
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={10}
-            style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel={t('back')}
-          >
-            <Ionicons name="chevron-back" size={24} color={colors.text} />
-          </Pressable>
-          <View style={styles.topActions}>
+        <View style={styles.recipeContent}>
+          <View style={styles.topBar}>
             <Pressable
-              onPress={() => toggleFavorite(selected.id)}
-              hitSlop={8}
+              onPress={() => router.back()}
+              hitSlop={10}
               style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
               accessibilityRole="button"
-              accessibilityLabel={meta.favorite ? t('removeFavorite') : t('addFavorite')}
-              accessibilityState={{ selected: meta.favorite }}
+              accessibilityLabel={t('back')}
             >
-              <Ionicons
-                name={meta.favorite ? 'heart' : 'heart-outline'}
-                size={22}
-                color={colors.text}
-              />
+              <Ionicons name="chevron-back" size={24} color={colors.text} />
             </Pressable>
-            <Pressable
-              onPress={() => router.push({ pathname: '/form', params: { id: selected.id } })}
-              hitSlop={10}
-              style={({ pressed }) => [styles.pillButton, pressed && styles.pressed]}
-              accessibilityRole="button"
-            >
-              <Text style={styles.pillButtonText}>{t('edit')}</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <Text style={styles.detailTitle}>{selected.title}</Text>
-        {selected.category && <Text style={styles.subtitle}>{categoryLabel(selected.category, t)}</Text>}
-
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <View style={styles.statLabelRow}>
-              <Ionicons name="timer-outline" size={16} color={colors.muted} />
-              <Text style={styles.statLabel}>{t('time')}</Text>
-            </View>
-            <Text style={styles.statValue}>{selected.time}</Text>
-            <Text style={styles.statHint}>
-              {plural(language, selected.time, t('minuteOne'), t('minuteFew'), t('minuteMany'))}
-            </Text>
-          </View>
-          <View style={styles.statCard}>
-            <View style={styles.statLabelRow}>
-              <Ionicons name="list-outline" size={16} color={colors.muted} />
-              <Text style={styles.statLabel}>{t('composition')}</Text>
-            </View>
-            <Text style={styles.statValue}>{ingredientCount}</Text>
-            <Text style={styles.statHint}>
-              {plural(language, ingredientCount, t('ingredientOne'), t('ingredientFew'), t('ingredientMany'))}
-            </Text>
-          </View>
-        </View>
-
-        {canCook && (
-          <Pressable
-            onPress={() => router.push({ pathname: '/cooking', params: { id: selected.id } })}
-            style={({ pressed }) => [styles.cookingButton, pressed && { transform: [{ scale: 0.98 }] }]}
-            accessibilityRole="button"
-            accessibilityLabel={t('startCooking')}
-          >
-            <Ionicons name="play" size={19} color={colors.accentText} />
-            <Text style={styles.cookingButtonText}>{t('startCooking')}</Text>
-          </Pressable>
-        )}
-        {/* "I cooked this" stays available; with steps it becomes the secondary action. */}
-        <Pressable
-          onPress={handleCooked}
-          style={({ pressed }) => canCook
-            ? [styles.actionButton, pressed && styles.pressed]
-            : [styles.cookingButton, pressed && { transform: [{ scale: 0.98 }] }]}
-          accessibilityRole="button"
-          accessibilityLabel={t('cookedAction')}
-        >
-          <Ionicons name="checkmark" size={21} color={canCook ? colors.text : colors.accentText} />
-          <Text style={canCook ? styles.actionButtonText : styles.cookingButtonText}>{t('cookedAction')}</Text>
-        </Pressable>
-
-        <View style={styles.cookingSummary}>
-          {lastCooking ? (
-            <>
-              <Text style={styles.cookingSummaryText}>
-                {t('cookedLabel', {
-                  count: meta.cookings.length,
-                  times: plural(
-                    language,
-                    meta.cookings.length,
-                    t('cookedTimesOne'),
-                    t('cookedTimesFew'),
-                    t('cookedTimesMany'),
-                  ),
-                })}
-              </Text>
-              <Text style={styles.cookingSummaryMuted}>
-                {t('lastCooked', { date: cookingDateLabel(lastCooking.cookedAt, language) })}
-              </Text>
-              {lastNotedCooking?.note && (
-                <>
-                  <Text style={styles.cookingDetailLabel}>{t('lastNote')}</Text>
-                  <Text style={styles.cookingNote}>«{lastNotedCooking.note}»</Text>
-                </>
-              )}
+            <View style={styles.topActions}>
               <Pressable
-                onPress={() => router.push({ pathname: '/history', params: { id: selected.id } })}
-                style={({ pressed }) => [styles.historyLink, pressed && styles.pressed]}
+                onPress={() => toggleFavorite(selected.id)}
+                hitSlop={8}
+                style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
                 accessibilityRole="button"
-                accessibilityLabel={t('openCookingHistory')}
+                accessibilityLabel={meta.favorite ? t('removeFavorite') : t('addFavorite')}
+                accessibilityState={{ selected: meta.favorite }}
               >
-                <Text style={styles.historyLinkText}>{t('cookingHistory')}</Text>
-                <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+                <Ionicons name={meta.favorite ? 'heart' : 'heart-outline'} size={22} color={colors.text} />
               </Pressable>
-            </>
-          ) : (
-            <Text style={styles.cookingSummaryMuted}>{t('neverCooked')}</Text>
-          )}
-        </View>
-
-        <Text style={styles.sectionTitle}>{t('ingredients')}</Text>
-        <View style={styles.group}>
-          {ingredientCount === 0 ? (
-            <View style={styles.groupRow}><Text style={styles.groupTextMuted}>{t('notSpecified')}</Text></View>
-          ) : (
-            selected.ingredients.map((ingredient, index) => (
-              <View key={`${ingredient}-${index}`} style={styles.groupRow}>
-                {index > 0 && <View style={styles.separator} />}
-                <Text style={styles.groupText}>{ingredient}</Text>
-              </View>
-            ))
-          )}
-        </View>
-        {ingredientCount > 0 && (
-          <Pressable
-            onPress={handleAddToShopping}
-            style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
-            accessibilityRole="button"
-          >
-            <Ionicons name="basket-outline" size={20} color={colors.text} />
-            <Text style={styles.actionButtonText}>{t('addToShopping')}</Text>
-          </Pressable>
-        )}
-
-        <Text style={styles.sectionTitle}>{t('preparation')}</Text>
-        <View style={styles.group}>
-          {selected.steps.length === 0 ? (
-            <View style={styles.groupRow}><Text style={styles.groupTextMuted}>{t('stepsNotSpecified')}</Text></View>
-          ) : (
-            selected.steps.map((step, index) => (
-              <View key={`${step}-${index}`} style={styles.groupRow}>
-                {index > 0 && <View style={[styles.separator, { left: 58 }]} />}
-                <Text style={styles.stepNumber}>{index + 1}</Text>
-                <Text style={styles.groupText}>{step}</Text>
-              </View>
-            ))
-          )}
-        </View>
-
-        <Pressable
-          onPress={handleDelete}
-          style={({ pressed }) => [
-            styles.group,
-            styles.deleteRow,
-            pressed && { backgroundColor: colors.cardPressed },
-          ]}
-          accessibilityRole="button"
-        >
-          <Text style={styles.deleteText}>{t('deleteRecipe')}</Text>
-        </Pressable>
-      </ScrollView>
-
-      {fromRandom && visible.length > 1 && (
-        <>
-          <LinearGradient
-            colors={['rgba(0,0,0,0)', colors.fadeEnd]}
-            style={styles.bottomFade}
-            pointerEvents="none"
-          />
-          <View
-            style={[styles.bottomBar, { bottom: Math.max(effectiveBottomInset, 8) }]}
-            pointerEvents="box-none"
-          >
-            <Pressable
-              onPress={handleAnother}
-              style={({ pressed }) => [styles.fab, pressed && { transform: [{ scale: 0.96 }] }]}
-              accessibilityRole="button"
-            >
-              <Text style={styles.fabText}>{t('anotherOption')}</Text>
-            </Pressable>
+              <Pressable
+                onPress={() => router.push({ pathname: '/form', params: { id: selected.id } })}
+                hitSlop={10}
+                style={({ pressed }) => [styles.pillButton, pressed && styles.pressed]}
+                accessibilityRole="button"
+              >
+                <Text style={styles.pillButtonText}>{t('edit')}</Text>
+              </Pressable>
+            </View>
           </View>
-        </>
-      )}
+
+          <Text style={styles.choiceKicker}>{category ? `${t('recipeBookKicker')} / ${category}` : t('recipeBookKicker')}</Text>
+          <Text accessibilityRole="header" style={[styles.recipeTitle, titleStyle]}>{selected.title}</Text>
+
+          {/* Three columns; with large text, rows with the label on the left. */}
+          <View style={[styles.recipeStats, stacked && styles.recipeStatsStacked]}>
+            {stats.map((stat, index) => (
+              <View key={stat.label} style={stacked ? styles.recipeStatRow : styles.recipeStatColumn}>
+                {index > 0 && <View style={stacked ? styles.recipeStatRowDivider : styles.recipeStatDivider} />}
+                <View style={stacked ? styles.recipeStatStacked : styles.recipeStat}>
+                  <Text style={styles.recipeStatLabel}>{stat.label}</Text>
+                  {stat.unit === undefined ? (
+                    <Text style={styles.recipeStatText}>{stat.value}</Text>
+                  ) : (
+                    <Text style={styles.recipeStatValue}>
+                      {stat.value} <Text style={styles.recipeStatUnit}>{stat.unit}</Text>
+                    </Text>
+                  )}
+                </View>
+              </View>
+            ))}
+          </View>
+
+          {lastCooking ? (
+            <Pressable
+              onPress={() => router.push({ pathname: '/history', params: { id: selected.id } })}
+              style={({ pressed }) => [styles.recipeHistoryCard, pressed && { backgroundColor: colors.cardPressed }]}
+              accessibilityRole="button"
+              accessibilityLabel={t('openCookingHistory')}
+            >
+              {historyCard}
+            </Pressable>
+          ) : (
+            <View style={styles.recipeHistoryCard}>{historyCard}</View>
+          )}
+
+          <View style={styles.recipeSectionHeading}>
+            <Text accessibilityRole="header" style={styles.recipeSectionTitle}>{t('ingredients')}</Text>
+            {ingredientCount > 0 && (
+              <Text style={styles.recipeSectionMeta}>
+                {ingredientCount} {plural(language, ingredientCount, t('ingredientOne'), t('ingredientFew'), t('ingredientMany'))}
+              </Text>
+            )}
+          </View>
+          <View style={styles.group}>
+            {ingredientCount === 0 ? (
+              <View style={styles.groupRow}><Text style={styles.groupTextMuted}>{t('notSpecified')}</Text></View>
+            ) : (
+              selected.ingredients.map((ingredient, index) => {
+                const { name, amount } = splitIngredient(ingredient);
+                return (
+                  <View key={`${ingredient}-${index}`} style={styles.recipeIngredientRow} accessible accessibilityLabel={ingredient}>
+                    {index > 0 && <View style={styles.separator} />}
+                    <Text style={styles.recipeIngredientName}>{name}</Text>
+                    {amount ? <Text style={styles.recipeIngredientAmount}>{amount}</Text> : null}
+                  </View>
+                );
+              })
+            )}
+          </View>
+          {ingredientCount > 0 && (
+            <Pressable
+              onPress={handleAddToShopping}
+              style={({ pressed }) => [styles.choiceSecondary, styles.recipeAction, pressed && { backgroundColor: colors.cardPressed }]}
+              accessibilityRole="button"
+              accessibilityLabel={t('addToShopping')}
+            >
+              <Ionicons name="basket-outline" size={20} color={colors.text} />
+              <Text style={styles.choiceSecondaryText}>{t('addToShopping')}</Text>
+            </Pressable>
+          )}
+
+          <View style={styles.recipeSectionHeading}>
+            <Text accessibilityRole="header" style={styles.recipeSectionTitle}>{t('preparation')}</Text>
+            {canCook && (
+              <Text style={styles.recipeSectionMeta}>
+                {steps.length} {plural(language, steps.length, t('stepOne'), t('stepFew'), t('stepMany'))}
+              </Text>
+            )}
+          </View>
+          <View style={styles.group}>
+            {!canCook ? (
+              <View style={styles.groupRow}><Text style={styles.groupTextMuted}>{t('stepsNotSpecified')}</Text></View>
+            ) : (
+              steps.map((step, index) => (
+                <View key={`${step}-${index}`} style={styles.recipeStepRow}>
+                  {index > 0 && <View style={styles.separator} />}
+                  <View style={styles.recipeStepNumber}>
+                    <Text style={styles.recipeStepNumberText}>{index + 1}</Text>
+                  </View>
+                  <Text style={styles.groupText}>{step}</Text>
+                </View>
+              ))
+            )}
+          </View>
+
+          <View style={styles.choiceActions}>
+            {canCook && (
+              <Pressable
+                onPress={() => router.push({ pathname: '/cooking', params: { id: selected.id } })}
+                style={({ pressed }) => [styles.choicePrimary, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel={t('startCooking')}
+              >
+                <Text style={styles.choicePrimaryText}>{t('startCooking')}</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.accentText} />
+              </Pressable>
+            )}
+            {/* With steps, a cooking is recorded only at the end of step-by-step cooking.
+                A recipe without steps has no such finish, so "I cooked this" records it directly. */}
+            {!canCook && (
+              <Pressable
+                onPress={handleCooked}
+                style={({ pressed }) => [styles.choicePrimary, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel={t('cookedAction')}
+              >
+                <Ionicons name="checkmark" size={20} color={colors.accentText} />
+                <Text style={styles.choicePrimaryText}>{t('cookedAction')}</Text>
+              </Pressable>
+            )}
+          </View>
+
+          <Pressable
+            onPress={handleDelete}
+            style={({ pressed }) => [styles.recipeDelete, pressed && { backgroundColor: colors.cardPressed }]}
+            accessibilityRole="button"
+            accessibilityLabel={t('deleteRecipe')}
+          >
+            <Ionicons name="trash-outline" size={20} color={colors.danger} />
+            <Text style={styles.deleteText}>{t('deleteRecipe')}</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
     </View>
   );
 }

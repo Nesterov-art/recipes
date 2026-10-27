@@ -35,6 +35,7 @@ function RecipesContent() {
     ? Math.round(recipes.reduce((sum, recipe) => sum + recipe.time, 0) / recipes.length)
     : 0;
   const stackedTime = fontScale >= STACKED_FONT_SCALE;
+  const cookingCount = Object.values(recipeMeta).reduce((sum, meta) => sum + meta.cookings.length, 0);
 
   function cycleSort() {
     setSort(sort === 'recent' ? 'asc' : sort === 'asc' ? 'desc' : 'recent');
@@ -64,6 +65,20 @@ function RecipesContent() {
         </View>
       </View>
 
+      <Pressable
+        onPress={() => router.push('/history')}
+        style={({ pressed }) => [styles.historyEntryButton, pressed && { backgroundColor: colors.cardPressed }]}
+        accessibilityRole="button"
+        accessibilityLabel={t('cookingHistory')}
+      >
+        <View style={styles.settingsRowIcon}>
+          <Ionicons name="time-outline" size={20} color={colors.text} />
+        </View>
+        <Text style={styles.shoppingMatchesButtonText}>{t('cookingHistory')}</Text>
+        {cookingCount > 0 && <Text style={styles.recipeSectionMeta}>{cookingCount}</Text>}
+        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+      </Pressable>
+
       <View style={styles.homeStats}>
         <View style={styles.homeStatCard}>
           <View style={styles.homeStatLabelRow}>
@@ -89,7 +104,10 @@ function RecipesContent() {
       </View>
 
       <View style={styles.homeSearch}>
-        <Ionicons name="search" size={18} color={colors.muted} />
+        {/* A fixed slot: on web the icon font arrives later, and the field must not shift then. */}
+        <View style={styles.homeSearchIcon}>
+          <Ionicons name="search" size={18} color={colors.muted} />
+        </View>
         <TextInput
           style={styles.homeSearchInput}
           value={query}

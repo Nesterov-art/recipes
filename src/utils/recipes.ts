@@ -53,6 +53,20 @@ export function cookingHistoryDateLabel(isoDate: string, language: Language) {
   return date.toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US', options);
 }
 
+// "Октябрь 2026" / "October 2026" for a history month heading.
+export function historyMonthLabel(year: number, month: number, language: Language) {
+  const name = new Date(year, month, 1).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US', { month: 'long' });
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${year}`;
+}
+
+// Day and short month for the date badge of a history row: "24" and "окт".
+export function historyDayParts(isoDate: string, language: Language) {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return null;
+  const month = date.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US', { month: 'short' }).replace(/\.$/, '');
+  return { day: String(date.getDate()), month };
+}
+
 export function filterLabel(filter: RecipeFilter, t: Translate) {
   const labels: Record<RecipeFilter, ReturnType<Translate>> = {
     Все: t('filterAll'),

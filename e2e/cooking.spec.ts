@@ -46,7 +46,7 @@ test('steps go forward and back one at a time; finishing alone records nothing',
   await button(page, 'Следующий шаг').click();
   await button(page, 'Завершить').click();
   await expect(page.getByRole('heading', { name: 'Отлично получилось!', exact: true })).toBeVisible();
-  await expect(page.getByText('10 мин', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('cooking-done').getByText('10 мин', { exact: true })).toBeVisible();
   await button(page, 'К рецепту').click();
   await expect(page).toHaveURL(new RegExp(`/recipe/${omelet.id}$`));
   expect(await cookings(page)).toHaveLength(0);
@@ -112,19 +112,14 @@ test('the note stays optional', async ({ page }) => {
   expect((await cookings(page))[0]).not.toHaveProperty('note');
 });
 
-test('"I cooked this" on the recipe records one cooking right away', async ({ page }) => {
+test('a recipe with steps records cookings only through step-by-step cooking', async ({ page }) => {
   await openRecipe(page);
-  await page.getByRole('button', { name: 'Я приготовил', exact: true }).evaluate(element => {
-    (element as HTMLElement).click();
-    (element as HTMLElement).click();
-  });
-  await expect(page.getByText('Готовили: 1 раз', { exact: true })).toBeVisible();
-  // It stays on the recipe: there is no separate rating screen any more.
-  await expect(page).toHaveURL(new RegExp(`/recipe/${omelet.id}$`));
-  await expect.poll(() => cookings(page)).toHaveLength(1);
-  expect((await cookings(page))[0]).not.toHaveProperty('rating');
+  await expect(button(page, 'Начать готовить')).toBeVisible();
+  await expect(button(page, 'Я приготовил')).toHaveCount(0);
+  // The former rating screen is gone for good.
   await page.goto(`/cook?id=${omelet.id}`);
   await expect(page.getByPlaceholder('Заметка о приготовлении', { exact: true })).toHaveCount(0);
+  expect(await cookings(page)).toHaveLength(0);
 });
 
 test.describe('older ratings', () => {
@@ -195,7 +190,16 @@ test.describe('special recipes', () => {
     await page.goto('/recipe/no-steps');
     await expect(button(page, 'Удалить рецепт')).toBeVisible();
     await expect(button(page, 'Начать готовить')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /Я приготовил$/ })).toBeVisible();
+    // Without steps there is no finish screen, so "I cooked this" records one cooking right away.
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('recipe-book-v1'))).not.toBeNull();
+    await button(page, 'Я приготовил').evaluate(element => {
+      (element as HTMLElement).click();
+      (element as HTMLElement).click();
+    });
+    await expect(page.getByText('Готовили: 1 раз', { exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/\/recipe\/no-steps$/);
+    await expect.poll(() => cookings(page, 'no-steps')).toHaveLength(1);
+    expect((await cookings(page, 'no-steps'))[0]).not.toHaveProperty('rating');
     await page.goto('/cooking?id=no-steps');
     await expect(page.getByText('Шагов пока нет', { exact: true })).toBeVisible();
     await button(page, 'К рецепту').click();

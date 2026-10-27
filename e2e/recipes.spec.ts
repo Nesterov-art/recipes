@@ -40,7 +40,8 @@ test.describe('empty book', () => {
     const reopened = await context.newPage();
     await reopened.goto('/recipes');
     await reopened.getByRole('button', { name: 'Открыть рецепт Тестовый салат', exact: true }).click();
-    await expect(reopened.getByText('Огурец — 1 шт', { exact: true })).toBeVisible();
+    // The row shows name and amount apart and reads as the stored line.
+    await expect(reopened.getByLabel('Огурец — 1 шт', { exact: true })).toBeVisible();
     await expect(reopened.getByText('Перемешать.', { exact: true })).toBeVisible();
   });
 });

@@ -22,24 +22,17 @@ async function scrollToEnd(page: import('@playwright/test').Page) {
 test.describe('long content and fixed actions', () => {
   test.use({ seedRecipes: [[longRecipe, { ...longRecipe, id: 'other', title: 'Другой длинный рецепт' }], { scope: 'test' }] });
 
-  test('random recipe final content can be scrolled fully above Another option', async ({ page }) => {
-    // The recipe screen keeps its random mode for direct links; the Choice tab now
-    // shows its own result and opens recipes without it.
-    await page.goto('/recipe/long-recipe?fromRandom=true');
-    const another = page.getByRole('button', { name: 'Другой вариант', exact: true });
-    await expect(another).toBeVisible();
-    await scrollToEnd(page);
+  test('a long recipe scrolls fully to its last action inside the viewport', async ({ page }) => {
+    // Random picks moved to the Choice tab; the recipe has no fixed "Another option" bar.
+    await page.goto('/recipe/long-recipe');
+    await expect(page.getByRole('button', { name: 'Другой вариант', exact: true })).toHaveCount(0);
     const finalAction = page.getByRole('button', { name: 'Удалить рецепт', exact: true });
-    await expect(finalAction).toBeVisible();
     await expect.poll(async () => {
       await scrollToEnd(page);
-      const last = await finalAction.boundingBox(); const fixed = await another.boundingBox();
-      return !!last && !!fixed && last.y + last.height <= fixed.y;
+      const last = await finalAction.boundingBox();
+      return !!last && last.y + last.height <= page.viewportSize()!.height;
     }).toBe(true);
     await expect(page.getByText(longRecipe.steps.at(-1)!, { exact: true })).toBeVisible();
-    await another.click();
-    await expect(page).toHaveURL(/\/recipe\/[\w-]+\?fromRandom=true$/);
-    await expect(another).toBeVisible();
   });
 
   test('form save remains reachable when web keyboard reduces the viewport', async ({ page }) => {

@@ -13,8 +13,8 @@ import stepByStepCookingLight from '../illustrations/step-by-step-cooking-light.
 // SHA-256 of the originals: CHOICE-01 and COOK-01 from design/monorec-2.2/asset_manifest.json,
 // their light variants and the Choice orbit as delivered separately per theme.
 const ORIGINALS = {
-  'choice_orbit.svg': { hash: '334e93c8cd65697c21714678ddde0c966bb144bf95a060e2d882c5b10dd3e6f9', xml: choiceOrbit },
-  'choice_orbit_light.svg': { hash: 'ae48ea481225a08f53c14811c0b4f8e52ced5edfb068f46203821821697d39d4', xml: choiceOrbitLight },
+  'choice_orbit.svg': { hash: 'd8d70099955715648e6f9b14218aaa624bef05f0bcf85d31afefc15d07b7e618', xml: choiceOrbit },
+  'choice_orbit_light.svg': { hash: '9c961ec343fdc3f9e137283c89cfb9c72653279157c7db8cbe7da82f70080a79', xml: choiceOrbitLight },
   'choose_what_to_cook.svg': { hash: 'f902ce9e336ce930d755620f6f8869956f8ac87d70cb8ad944d007300d99b448', xml: chooseWhatToCook },
   'choose_what_to_cook_light.svg': { hash: 'dcdcee2c743478125edbcdba163d0dc44c6a4b75cb78d1c265259f2f73c9feda', xml: chooseWhatToCookLight },
   'step_by_step_cooking.svg': { hash: '7b4475c10222a934578bce755427d432b895e0857fcbd8b224e893457d4d8818', xml: stepByStepCooking },

@@ -82,6 +82,39 @@ for (const theme of ['light', 'dark'] as const) {
       await visualReady(page);
       await expect(page).toHaveScreenshot('cooking-done.png');
     });
+    test('recipe, history and edit form @visual', async ({ page }) => {
+      await openHome(page);
+      await expect.poll(() => page.evaluate(() => localStorage.getItem('recipe-book-v1'))).not.toBeNull();
+      await page.evaluate(() => {
+        const book = JSON.parse(localStorage.getItem('recipe-book-v1')!);
+        book.recipeMeta = {
+          'e2e-omelet': { favorite: true, cookings: [
+            { id: 'o2', cookedAt: '2026-10-12T09:00:00.000Z', note: 'Больше сыра' },
+            { id: 'o1', cookedAt: '2026-09-20T09:00:00.000Z', rating: 'great' },
+          ] },
+          'e2e-soup': { favorite: false, cookings: [{ id: 's1', cookedAt: '2026-10-05T12:00:00.000Z' }] },
+        };
+        localStorage.setItem('recipe-book-v1', JSON.stringify(book));
+      });
+      await page.goto('/recipe/e2e-omelet');
+      await expect(page.getByText('«Больше сыра»', { exact: true })).toBeVisible();
+      await visualReady(page);
+      await expect(page).toHaveScreenshot('recipe.png');
+      await page.evaluate(() => { document.documentElement.style.fontSize = '24px'; });
+      await visualReady(page);
+      await expect(page).toHaveScreenshot('recipe-large-text.png');
+      await page.goto('/history');
+      await expect(page.getByTestId('history-entry')).toHaveCount(3);
+      await visualReady(page);
+      await expect(page).toHaveScreenshot('history.png');
+      await page.goto('/form?id=e2e-omelet');
+      await expect(page.getByPlaceholder('Название рецепта')).toHaveValue(recipes[0].title);
+      await visualReady(page);
+      await expect(page).toHaveScreenshot('form-edit.png');
+      await page.evaluate(() => { document.documentElement.style.fontSize = '24px'; });
+      await visualReady(page);
+      await expect(page).toHaveScreenshot('form-large-text.png');
+    });
     test('about screen @visual', async ({ page }) => {
       await page.goto('/about');
       await expect(page.getByTestId('about-screen').getByText('Monorec', { exact: true })).toBeVisible();
