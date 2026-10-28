@@ -147,6 +147,15 @@ function RecipeContent() {
                 <Ionicons name={meta.favorite ? 'heart' : 'heart-outline'} size={22} color={colors.text} />
               </Pressable>
               <Pressable
+                onPress={() => router.push({ pathname: '/share-recipe', params: { id: selected.id } })}
+                hitSlop={8}
+                style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel={t('shareRecipe')}
+              >
+                <Ionicons name="share-outline" size={22} color={colors.text} />
+              </Pressable>
+              <Pressable
                 onPress={() => router.push({ pathname: '/form', params: { id: selected.id } })}
                 hitSlop={10}
                 style={({ pressed }) => [styles.pillButton, pressed && styles.pressed]}

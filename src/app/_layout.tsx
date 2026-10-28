@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { RecipesProvider, useRecipes } from '@/context/recipes-context';
 import { SettingsProvider, useSettings } from '@/context/settings-context';
 import { ShoppingProvider, useShopping } from '@/context/shopping-context';
 import { ToastProvider } from '@/context/toast-context';
+import { RECIPE_LINK_PATH } from '@/utils/recipe-link';
 
 function RootNavigator() {
   const { completed } = useOnboarding();
@@ -25,11 +26,13 @@ function RootNavigator() {
   // when the page is left mid-request on web. Loading it once here handles the error,
   // and icons mounted afterwards find the font in place. A failed load still renders.
   const [iconsLoaded, iconsError] = useFonts(Ionicons.font);
+  const pathname = usePathname();
 
   if (!recipesLoaded || !settingsLoaded || !shoppingLoaded) return null;
   if (!iconsLoaded && !iconsError) return null;
 
-  if (!completed) return <Onboarding />;
+  // A shared recipe opened from a link shows at once, before any introduction.
+  if (!completed && pathname !== RECIPE_LINK_PATH) return <Onboarding />;
 
   return (
     <Stack
@@ -45,6 +48,15 @@ function RootNavigator() {
       <Stack.Screen name="history" />
       <Stack.Screen name="about" />
       <Stack.Screen name="backup" />
+      <Stack.Screen name="shared-recipe" />
+      <Stack.Screen
+        name="share-recipe"
+        options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
+      />
+      <Stack.Screen
+        name="import-link"
+        options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
+      />
       <Stack.Screen
         name="cooking"
         options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}

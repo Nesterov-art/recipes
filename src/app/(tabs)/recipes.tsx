@@ -58,6 +58,15 @@ function RecipesContent() {
         </View>
         <View style={styles.homeActions}>
           <Pressable
+            onPress={() => router.push('/import-link')}
+            hitSlop={2}
+            style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel={t('addByLink')}
+          >
+            <Ionicons name="link-outline" size={24} color={colors.text} />
+          </Pressable>
+          <Pressable
             onPress={() => router.push('/form')}
             hitSlop={2}
             style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
