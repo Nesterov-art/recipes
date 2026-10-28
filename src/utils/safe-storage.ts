@@ -106,14 +106,24 @@ export class SafeStore<T> {
     this.publish({ saving: true });
     try {
       const sources = checkSources || expected?.raw === null ? Object.entries(this.entries) : [[key, expected] as const];
+      let stored = false;
       for (const [source, original] of sources) {
-        if (!original || original.error || await this.storage.getItem(source) !== original.raw) {
-          this.pending = { data, after, checkSources };
-          this.publish({ issue: 'conflict', saving: false });
-          return false;
+        const current = !original || original.error ? undefined : await this.storage.getItem(source);
+        if (original && !original.error && current === original.raw) continue;
+        // An earlier attempt of exactly this change landed although it reported an error.
+        if (source === key && current === encoded[key]) { stored = true; continue; }
+        this.pending = { data, after, checkSources };
+        this.publish({ issue: 'conflict', saving: false });
+        return false;
+      }
+      if (!stored && encoded[key] !== expected.raw) {
+        try {
+          await this.storage.setItem(key, encoded[key]);
+        } catch (error) {
+          // A write can land and still report an error: only the stored value decides.
+          if (error instanceof StorageSpaceError || await this.storage.getItem(key).catch(() => undefined) !== encoded[key]) throw error;
         }
       }
-      if (encoded[key] !== expected.raw) await this.storage.setItem(key, encoded[key]);
       this.entries[key] = { raw: encoded[key] };
     } catch (error) {
       // Nothing was written and retrying cannot help: the change is declined, not kept

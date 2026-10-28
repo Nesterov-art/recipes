@@ -378,6 +378,30 @@ test('when even a deletion does not fit, it is refused without blocking and the 
   assert.equal(await guarded.setItem(LAST_BACKUP_KEY, new Date().toISOString()), undefined);
 });
 
+// The manifest of a save lands, then the read that checks it fails: ChunkedStorage reports
+// an error although the new value is stored. SafeStore must find the saved value, not a conflict.
+test('a saved book whose check read failed is recognised, on the spot or by Retry, cooking once', async t => {
+  for (const failedReads of [1, 2]) {
+    const io = sqliteDevice(t);
+    const setup = createNativeStorage(io); await recoverNative(setup);
+    await restore(setup, makeProfile(300, 'a'));
+    const manifest = manifestKey('recipe-book-v1');
+    const { getItem, setItem } = io; let armed = 0;
+    io.setItem = async (key, value) => { await setItem(key, value); if (key === manifest && armed < 0) armed = failedReads; };
+    io.getItem = async key => { if (key === manifest && armed > 0) { armed--; throw new Error('synthetic read failure'); } return getItem(key); };
+    const storage = createNativeStorage(io, 32 * MiB);
+    const store = new SafeStore(storage, bookConfig(false)); await store.load();
+    const id = store.getSnapshot().data.recipes[0].id;
+    const cookingsOf = book => book.recipeMeta[id].cookings.filter(cooking => cooking.id === 'new').length;
+    let successes = 0; armed = -1;
+    const saved = await store.update(book => ({ ...book, recipeMeta: { ...book.recipeMeta, [id]: { ...book.recipeMeta[id], cookings: [{ id: 'new', cookedAt: '2026-10-28T10:00:00.000Z' }, ...book.recipeMeta[id].cookings] } } }), () => successes++);
+    if (failedReads === 1) assert.equal(saved, true, 'one failed check read');
+    else { assert.equal(saved, false); assert.equal(store.getSnapshot().issue, 'write'); assert.equal(await store.retry(), true, 'Retry after two failed reads'); }
+    assert.equal(store.getSnapshot().issue, undefined); assert.equal(successes, 1);
+    assert.equal(cookingsOf(await bookOf(io)), 1); assert.equal(cookingsOf(store.getSnapshot().data), 1);
+  }
+});
+
 // The decision near the limit always rests on a fresh count of the stored rows, whatever
 // happened before: saves, failures, restarts, restores, interrupted restores, cleanup.
 test('the room check stays exact after writes, failures, restarts, restores and cleanup', { timeout: 300_000 }, async () => {

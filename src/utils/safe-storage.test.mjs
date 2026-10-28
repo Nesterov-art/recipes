@@ -188,6 +188,90 @@ test('a write refusal followed by a competing commit preserves both source and p
   const archiveKey = io.log.find(key => key.startsWith('storage-recovery-v1:'));
   assert.equal(JSON.parse(JSON.parse(io.data.get(archiveKey)).pending['shopping-list-v1'])[0].name, 'Молоко');
 });
+// A write can land and still report an error (a failed check after the commit). `landed`
+// makes the next write of a key do that; `stored` replaces what lands (a damaged value);
+// `failReads` makes that many next reads of a key fail.
+function landing(seed = {}) {
+  const io = adapter(seed);
+  const { getItem, setItem } = io;
+  Object.assign(io, {
+    landed: new Set(), stored: new Map(), failReads: new Map(),
+    async getItem(k) {
+      const left = io.failReads.get(k) ?? 0;
+      if (left > 0) { io.failReads.set(k, left - 1); throw new Error('synthetic read failure'); }
+      return getItem(k);
+    },
+    async setItem(k, value) {
+      if (!io.landed.delete(k)) return setItem(k, value);
+      await setItem(k, io.stored.get(k) ?? value);
+      throw new Error('synthetic check failure after the write');
+    },
+  });
+  return io;
+}
+const cook = id => current => ({ ...current, recipeMeta: { ...current.recipeMeta, a: { ...current.recipeMeta.a, cookings: [{ id, cookedAt: '2026-10-28T10:00:00.000Z' }, ...current.recipeMeta.a.cookings] } } });
+const storedCookings = io => JSON.parse(io.data.get(key)).recipeMeta.a.cookings.map(cooking => cooking.id);
+
+test('a write that landed but reported an error is a saved change, once', async () => {
+  const io = landing({ [key]: JSON.stringify(book) }); const store = new SafeStore(io, bookConfig(false)); await store.load();
+  io.landed.add(key); let successes = 0;
+  assert.equal(await store.update(cook('new'), () => successes++), true);
+  assert.equal(store.getSnapshot().issue, undefined); assert.equal(successes, 1);
+  assert.deepEqual(storedCookings(io), ['new', 'old-cooking']);
+  assert.deepEqual(store.getSnapshot().data.recipeMeta.a.cookings.map(cooking => cooking.id), ['new', 'old-cooking']);
+});
+
+test('when the check read fails too, Retry finds the saved change instead of a conflict', async () => {
+  const io = landing({ [key]: JSON.stringify(book) }); const store = new SafeStore(io, bookConfig(false)); await store.load();
+  io.landed.add(key); io.failReads.set(key, 1); let successes = 0;
+  assert.equal(await store.update(cook('new'), () => successes++), false);
+  assert.equal(store.getSnapshot().issue, 'write'); assert.equal(successes, 0);
+  assert.equal(await store.retry(), true);
+  assert.equal(store.getSnapshot().issue, undefined); assert.equal(successes, 1);
+  assert.deepEqual(storedCookings(io), ['new', 'old-cooking']);
+  // A later change builds on the saved one; nothing is lost or written twice.
+  assert.equal(await store.update(cook('later')), true);
+  assert.deepEqual(storedCookings(io), ['later', 'new', 'old-cooking']);
+  assert.equal(await store.retry(), false); assert.equal(successes, 1);
+});
+
+test('a third value after an unclear write is still a conflict, and it is kept', async () => {
+  const io = landing({ [key]: JSON.stringify(book) }); const store = new SafeStore(io, bookConfig(false)); await store.load();
+  io.landed.add(key); io.failReads.set(key, 1);
+  assert.equal(await store.update(cook('new')), false);
+  const other = JSON.stringify(cook('other device')(book));
+  io.data.set(key, other);
+  assert.equal(await store.retry(), false); assert.equal(store.getSnapshot().issue, 'conflict');
+  assert.equal(io.data.get(key), other);
+});
+
+test('a damaged or unreadable result is never taken for a saved change', async () => {
+  const damaged = landing({ [key]: JSON.stringify(book) }); const store = new SafeStore(damaged, bookConfig(false)); await store.load();
+  damaged.landed.add(key); damaged.stored.set(key, JSON.stringify(cook('new')(book)).slice(0, -2));
+  let successes = 0;
+  assert.equal(await store.update(cook('new'), () => successes++), false);
+  assert.equal(store.getSnapshot().issue, 'write');
+  assert.equal(await store.retry(), false); assert.equal(store.getSnapshot().issue, 'conflict'); assert.equal(successes, 0);
+
+  const unreadable = landing({ [key]: JSON.stringify(book) }); const second = new SafeStore(unreadable, bookConfig(false)); await second.load();
+  unreadable.landed.add(key); unreadable.failReads.set(key, 3);
+  assert.equal(await second.update(cook('new'), () => successes++), false);
+  assert.equal(await second.retry(), false);
+  assert.equal(second.getSnapshot().issue, 'write'); assert.equal(successes, 0);
+});
+
+test('a landed write still updates the mirrors of the web layout', async () => {
+  const io = landing({ [key]: JSON.stringify(book), recipes: JSON.stringify(book.recipes), 'recipe-meta-v1': JSON.stringify(book.recipeMeta) });
+  const store = new SafeStore(io, bookConfig()); await store.load();
+  io.landed.add(key); io.failReads.set(key, 1);
+  assert.equal(await store.update(cook('new')), false);
+  assert.equal(io.data.get('recipe-meta-v1'), JSON.stringify(book.recipeMeta), 'mirrors wait for a confirmed main key');
+  assert.equal(await store.retry(), true);
+  assert.equal(store.getSnapshot().issue, undefined);
+  assert.deepEqual(JSON.parse(io.data.get('recipe-meta-v1')).a.cookings.map(cooking => cooking.id), ['new', 'old-cooking']);
+  assert.equal(io.data.get('recipes'), JSON.stringify(book.recipes));
+});
+
 test('mirror write failure retries mirrors without repeating committed cooking/add', async () => {
   const io = adapter({ [key]: JSON.stringify(book), recipes: JSON.stringify(book.recipes), 'recipe-meta-v1': JSON.stringify(book.recipeMeta) });
   const store = new SafeStore(io, bookConfig()); await store.load(); io.writes.add('recipes');
