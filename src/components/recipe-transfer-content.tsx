@@ -41,6 +41,7 @@ export function RecipeTransferContent() {
     return () => { active = false; };
   }, []);
   function report(err: unknown, exporting = false) {
+    if (err instanceof FolderSaveError && err.leftover) { setError(t('backupSaveLeftover', { name: err.leftover })); return; }
     setError(t(err instanceof BackupError ? err.code === 'size' ? exporting && Platform.OS !== 'web' ? 'backupExportSizeError' : 'backupSizeError' : err.code === 'version' ? 'backupVersionError' : 'backupInvalidError'
       : err instanceof ProfileRestoreError ? err.code === 'conflict' ? 'profileConflict' : err.code === 'recovery' ? 'profileRecoveryError' : err.code === 'space' ? 'profileSpaceError' : 'profileRestoreError'
       : err instanceof FolderSaveError ? err.code === 'space' ? 'backupSaveSpaceError' : 'backupSaveError'

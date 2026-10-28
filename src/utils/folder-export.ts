@@ -9,9 +9,12 @@ export type FolderSaveResult = { status: 'cancelled' } | { status: 'saved'; name
 
 export class FolderSaveError extends Error {
   code: 'write' | 'verify' | 'space';
-  constructor(code: FolderSaveError['code'], cause?: unknown) {
+  // The incomplete file this save created and could not remove.
+  leftover?: string;
+  constructor(code: FolderSaveError['code'], cause?: unknown, leftover?: string) {
     super(code, { cause });
     this.code = code;
+    this.leftover = leftover;
   }
 }
 const spaceError = (error: unknown) => error instanceof Error && /ENOSPC|no space|full|quota/i.test(error.message);
@@ -46,20 +49,21 @@ export async function saveToFolder(pick: () => Promise<PickedFolder | null>, tex
   try {
     await file.write(text);
   } catch (error) {
-    removeOwn(file);
-    throw new FolderSaveError(spaceError(error) ? 'space' : 'write', error);
+    throw new FolderSaveError(spaceError(error) ? 'space' : 'write', error, removeOwn(file, name));
   }
   let stored: string | undefined;
   try { stored = await file.text(); } catch { /* Reported as a failed check below. */ }
-  if (stored !== text) {
-    removeOwn(file); // An incomplete copy must not look like a backup.
-    throw new FolderSaveError('verify');
-  }
-  const saved = nameFromUri(file.uri);
-  return { status: 'saved', name: saved.endsWith('.json') ? saved : name };
+  // An incomplete copy must not look like a backup.
+  if (stored !== text) throw new FolderSaveError('verify', undefined, removeOwn(file, name));
+  return { status: 'saved', name: fileName(file, name) };
 }
-function removeOwn(file: FolderFile) {
-  try { file.delete(); } catch { /* The file was created by this save; nothing else is touched. */ }
+const fileName = (file: FolderFile, name: string) => {
+  const stored = nameFromUri(file.uri);
+  return stored.endsWith('.json') ? stored : name;
+};
+// Removes the file this save created, never anything else; returns its name if it stays.
+function removeOwn(file: FolderFile, name: string) {
+  try { file.delete(); return undefined; } catch { return fileName(file, name); }
 }
 
 // Whether an export may update "last export" and which message it gets.

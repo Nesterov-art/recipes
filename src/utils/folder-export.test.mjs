@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createTranslator } from '../constants/i18n.ts';
 import {
   backupFileName, EXPORT_RETENTION_MS, exportOutcome, FolderSaveError, nameFromUri, saveToFolder, staleExportFolders, uniqueName,
 } from './folder-export.ts';
@@ -7,7 +8,7 @@ import {
 const day = new Date(2026, 9, 27, 23, 59);
 const tree = 'content://com.android.externalstorage.documents/tree/primary%3ADocuments%2FMonorec/document/primary%3ADocuments%2FMonorec%2F';
 // A folder in the shape of a SAF tree: create() never replaces, like DocumentsContract.createDocument.
-function folder(existing = [], { failCreate, failWrite, corrupt, failRead } = {}) {
+function folder(existing = [], { failCreate, failWrite, corrupt, failRead, failDelete } = {}) {
   const files = new Map(existing.map(name => [name, 'old content']));
   const log = [];
   return {
@@ -21,7 +22,7 @@ function folder(existing = [], { failCreate, failWrite, corrupt, failRead } = {}
         uri: tree + encodeURIComponent(name),
         async write(text) { if (failWrite) throw new Error(failWrite); files.set(name, corrupt ? text.slice(1) : text); },
         async text() { if (failRead) throw new Error('read denied'); return files.get(name); },
-        delete() { files.delete(name); log.push(['delete', name]); },
+        delete() { if (failDelete) throw new Error('delete denied'); files.delete(name); log.push(['delete', name]); },
       };
     },
   };
@@ -70,10 +71,34 @@ test('a failed write, a short file or an unreadable file is never reported as sa
   for (const [options, code] of [[{ failWrite: 'EACCES: permission denied' }, 'write'], [{ corrupt: true }, 'verify'], [{ failRead: true }, 'verify'],
     [{ failWrite: 'ENOSPC: no space left on device' }, 'space'], [{ failCreate: 'No space left' }, 'space'], [{ failCreate: 'Permission denied' }, 'write']]) {
     const dir = folder(['keep.json'], options);
-    await assert.rejects(saveToFolder(async () => dir, text, 'profile', day), error => error instanceof FolderSaveError && error.code === code, JSON.stringify(options));
+    await assert.rejects(saveToFolder(async () => dir, text, 'profile', day), error => error instanceof FolderSaveError && error.code === code && error.leftover === undefined, JSON.stringify(options));
     // Only the file this save created is removed; other files in the folder stay.
     assert.deepEqual(dir.list(), ['keep.json'], JSON.stringify(options));
   }
+});
+
+// The file this save created could not be removed after a failed write or check: the error
+// names it, so the user can delete it. The day's existing backup is never touched.
+test('an incomplete file that could not be removed is named in the error', async () => {
+  const existing = 'monorec-profile-2026-10-27.json', created = 'monorec-profile-2026-10-27-2.json';
+  for (const [options, code] of [[{ failWrite: 'EIO: write failed', failDelete: true }, 'write'], [{ corrupt: true, failDelete: true }, 'verify'],
+    [{ failRead: true, failDelete: true }, 'verify'], [{ failWrite: 'ENOSPC: no space left on device', failDelete: true }, 'space']]) {
+    const dir = folder([existing], options);
+    const outcome = await saveToFolder(async () => dir, text, 'profile', day).then(result => result, error => error);
+    assert(outcome instanceof FolderSaveError, `${JSON.stringify(options)}: a failed save is never a result`);
+    assert.equal(outcome.code, code, JSON.stringify(options));
+    assert.equal(outcome.leftover, created, JSON.stringify(options));
+    assert.equal(dir.files.get(existing), 'old content');
+    assert.deepEqual(dir.list(), [existing, created]);
+  }
+});
+
+test('the left-over file name is shown as written, in Russian and English', () => {
+  const name = 'monorec-profile-2026-10-27-2 $& $1 <b>.json';
+  const ru = createTranslator('ru')('backupSaveLeftover', { name });
+  const en = createTranslator('en')('backupSaveLeftover', { name });
+  assert.equal(ru, `Не удалось сохранить резервную копию. В выбранной папке мог остаться неполный файл «${name}». Не используй его для восстановления. Удали файл и повтори сохранение.`);
+  assert.equal(en, `Backup could not be saved. An incomplete file named “${name}” may remain in the selected folder. Do not use it for recovery. Delete the file and try again.`);
 });
 
 test('the Share sheet hands the file off without claiming it was saved', () => {

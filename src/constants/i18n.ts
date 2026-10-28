@@ -56,6 +56,7 @@ const ru = {
   backupHandedOff: 'Файл передан в системное меню. Проверь, что он сохранился.',
   backupSaveError: 'Не удалось сохранить файл в выбранную папку. Данные приложения не изменены.',
   backupSaveSpaceError: 'Недостаточно места в выбранной папке. Файл не сохранён.',
+  backupSaveLeftover: 'Не удалось сохранить резервную копию. В выбранной папке мог остаться неполный файл «{name}». Не используй его для восстановления. Удали файл и повтори сохранение.',
   backupExportSizeError: 'Книга слишком большая для копии рецептов (до 5 МБ и 5000 рецептов). Сохрани полную копию профиля — в ней есть все рецепты.',
   onboardingReplay: 'Знакомство',
   onboardingSkip: 'Пропустить', onboardingNext: 'Продолжить', onboardingStart: 'Начать',
@@ -239,6 +240,7 @@ const en: Record<TranslationKey, string> = {
   backupHandedOff: 'The file was handed to the system menu. Check that it was saved.',
   backupSaveError: 'Could not save the file to the chosen folder. Your app data has not changed.',
   backupSaveSpaceError: 'Not enough space in the chosen folder. The file was not saved.',
+  backupSaveLeftover: 'Backup could not be saved. An incomplete file named “{name}” may remain in the selected folder. Do not use it for recovery. Delete the file and try again.',
   backupExportSizeError: 'The book is too large for a recipe backup (up to 5 MB and 5,000 recipes). Save a full profile backup instead — it contains every recipe.',
   onboardingReplay: 'Introduction',
   onboardingSkip: 'Skip', onboardingNext: 'Continue', onboardingStart: 'Get started',
@@ -371,7 +373,8 @@ export function createTranslator(language: Language): Translate {
   return (key, values) => {
     let result: string = dictionaries[language][key];
     for (const [name, value] of Object.entries(values ?? {})) {
-      result = result.replace(`{${name}}`, String(value));
+      // A function keeps "$&" and the like in names and titles as written.
+      result = result.replace(`{${name}}`, () => String(value));
     }
     return result;
   };
