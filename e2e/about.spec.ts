@@ -43,15 +43,12 @@ test('About shows the real version, description, developer and feedback without 
   await expect(screen.getByText(/синхронизац|облак/i)).toHaveCount(1);
 });
 
-test('About leads to the backups, and back returns to About', async ({ page }) => {
+test('About explains local storage and points to Settings for backups without a second entry', async ({ page }) => {
   await openAbout(page);
-  await about(page).getByRole('button', { name: 'Резервные копии', exact: true }).click();
-  await expect(page).toHaveURL(/\/backup$/);
-  const backup = page.getByTestId('backup-screen');
-  await expect(backup.getByRole('button', { name: 'Выгрузить весь профиль', exact: true })).toBeVisible();
-  await expect(backup.getByRole('button', { name: 'Восстановить профиль', exact: true })).toBeVisible();
-  await backup.getByRole('button', { name: 'Назад', exact: true }).click();
-  await expect(page).toHaveURL(/\/about$/);
+  const screen = about(page);
+  await expect(screen.getByRole('button', { name: 'Резервные копии', exact: true })).toHaveCount(0);
+  await expect(screen.getByRole('heading', { name: 'Данные', exact: true })).toBeVisible();
+  await expect(screen.getByText('Чтобы перенести или сохранить данные, создайте резервную копию в разделе «Настройки → Резервные копии».', { exact: true })).toBeVisible();
 });
 
 test.describe('English, dark theme', () => {

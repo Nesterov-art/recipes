@@ -13,7 +13,7 @@ export default function BackupScreen() {
   return <PaletteProvider palette={MONOREC_THEMES}><BackupContent /></PaletteProvider>;
 }
 
-// Recipe and profile backups, opened from Settings. The file operations are the
+// The one entry to backups, opened from Settings. The file operations are the
 // existing ones in RecipeTransfer; this screen only frames them.
 function BackupContent() {
   const insets = useSafeAreaInsets();

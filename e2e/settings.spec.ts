@@ -98,18 +98,12 @@ test('language switches the whole screen and the shopping preference keeps its v
 
 test.describe('empty book', () => {
   test.use({ seedRecipes: [] });
-  test('disabled recipe export explains that a recipe is needed first', async ({ page }) => {
+  test('a full backup can be made and restored even before the first recipe', async ({ page }) => {
     await openBackups(page);
-    await expect(page.getByRole('button', { name: 'Выгрузить рецепты', exact: true })).toBeDisabled();
-    await expect(page.getByText('Выгрузка станет доступна после первого рецепта.', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Загрузить рецепты', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Создать резервную копию', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Восстановить из файла', exact: true })).toBeEnabled();
+    await expect(page.getByText('Выгрузка станет доступна после первого рецепта.', { exact: true })).toHaveCount(0);
   });
-});
-
-test('recipe export explanation disappears once the book has recipes', async ({ page }) => {
-  await openBackups(page);
-  await expect(page.getByRole('button', { name: 'Выгрузить рецепты', exact: true })).toBeEnabled();
-  await expect(page.getByText('Выгрузка станет доступна после первого рецепта.', { exact: true })).toHaveCount(0);
 });
 
 test.describe('narrow screen with large text', () => {
@@ -148,7 +142,7 @@ test('sections follow the design and Backups opens one tap from Settings', async
   await page.getByRole('button', { name: 'Резервные копии', exact: true }).click();
   await expect(page).toHaveURL(/\/backup$/);
   await expect(page.getByRole('tab', { name: 'Настройки', exact: true })).toBeHidden();
-  for (const name of ['Выгрузить рецепты', 'Загрузить рецепты', 'Выгрузить весь профиль', 'Восстановить профиль']) {
+  for (const name of ['Создать резервную копию', 'Восстановить из файла']) {
     await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
   }
   await expect(page.getByText('Перед восстановлением', { exact: true })).toBeVisible();

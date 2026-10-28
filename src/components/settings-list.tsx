@@ -19,17 +19,18 @@ const ACCESSORY_ICONS: Record<Accessory, IconName> = {
 // Large system text moves the value under the title instead of squeezing both.
 const STACKED_FONT_SCALE = 1.35;
 
-export function SettingsSection({ title, footer, children }: { title: string; footer?: ReactNode; children: ReactNode }) {
+// A section without rows shows only its title and footer text.
+export function SettingsSection({ title, footer, children }: { title: string; footer?: ReactNode; children?: ReactNode }) {
   const styles = useStyles();
   const rows = Children.toArray(children);
   return <View>
     <Text accessibilityRole="header" style={styles.settingLabel}>{title}</Text>
-    <View style={styles.settingsCard}>
+    {rows.length > 0 && <View style={styles.settingsCard}>
       {rows.map((row, index) => <Fragment key={index}>
         {index > 0 && <View style={styles.settingsSeparator} />}
         {row}
       </Fragment>)}
-    </View>
+    </View>}
     {footer}
   </View>;
 }

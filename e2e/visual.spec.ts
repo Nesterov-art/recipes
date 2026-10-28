@@ -117,7 +117,7 @@ for (const theme of ['light', 'dark'] as const) {
     });
     test('backup screen @visual', async ({ page }) => {
       await page.goto('/backup');
-      await expect(page.getByRole('button', { name: 'Восстановить профиль', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Восстановить из файла', exact: true })).toBeVisible();
       await visualReady(page);
       await expect(page).toHaveScreenshot('backup.png');
     });

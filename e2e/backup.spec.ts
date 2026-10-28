@@ -13,22 +13,60 @@ async function settings(page: import('@playwright/test').Page) {
   await openBackups(page);
 }
 
-test('downloaded JSON contains the full book and can be imported again without duplicates', async ({ page }, testInfo) => {
+const button = (page: import('@playwright/test').Page, name: string) => page.getByRole('button', { name, exact: true });
+
+test('the backup screen offers one full backup and one restore; the old recipe-only rows are gone', async ({ page }) => {
+  await settings(page);
+  await expect(button(page, 'Создать резервную копию')).toBeEnabled();
+  await expect(button(page, 'Восстановить из файла')).toBeEnabled();
+  for (const old of ['Выгрузить рецепты', 'Загрузить рецепты', 'Выгрузить весь профиль', 'Восстановить профиль']) await expect(button(page, old)).toHaveCount(0);
+  await expect(page.getByText('Книга рецептов', { exact: true })).toHaveCount(0);
+});
+
+test('a created backup holds all app data; restoring it needs a confirmation and Cancel changes nothing', async ({ page }, testInfo) => {
   await settings(page);
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Выгрузить рецепты', exact: true }).click();
+  await button(page, 'Создать резервную копию').click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/^recipes-.*\.json$/);
+  expect(download.suggestedFilename()).toMatch(/^recipes-profile-.*\.json$/);
   const file = testInfo.outputPath('backup.json');
   await download.saveAs(file);
   const exported = JSON.parse(await readFile(file, 'utf8'));
-  expect(exported).toMatchObject({ format: 'recipes-backup', version: 1, recipes });
+  expect(exported).toMatchObject({ format: 'recipes-profile-backup', version: 1, profile: { recipes, shoppingItems: [], settings: { theme: 'light', language: 'ru' } } });
+  const stored = () => page.evaluate(() => [localStorage.getItem('recipe-book-v1'), localStorage.getItem('shopping-list-v1'), localStorage.getItem('app-settings-v1')]);
+  const before = await stored();
   await page.getByTestId('recipe-file-input').setInputFiles(file);
-  await expect(page.getByTestId('recipe-import-preview')).toContainText('Новых: 0. Уже есть: 2.');
-  await page.getByRole('button', { name: 'Добавить в мою книгу', exact: true }).click();
-  await expect(page.getByTestId('recipe-import-preview')).toHaveCount(0);
+  const preview = page.getByTestId('profile-import-preview');
+  await expect(preview).toContainText('Восстановить данные из копии?');
+  await expect(preview).toContainText('будут заменены');
+  // A full backup offers only restoring everything or cancelling.
+  await expect(preview.getByRole('button')).toHaveText(['Восстановить данные', 'Отмена']);
+  await button(page, 'Отмена').click();
+  await expect(preview).toHaveCount(0);
+  expect(await stored()).toEqual(before);
+  await page.getByTestId('recipe-file-input').setInputFiles(file);
+  await button(page, 'Восстановить данные').click();
+  await expect(preview).toHaveCount(0);
   await page.reload();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('recipe-book-v1')!).recipes)).toEqual(recipes);
+});
+
+// No accounts or separate profiles in Monorec: the backup screen speaks of a backup and app data.
+test('the backup screen never says "профиль" in its actions, previews or errors', async ({ page }) => {
+  await settings(page);
+  const screen = page.getByTestId('backup-screen');
+  const noProfileWord = () => expect(screen.getByText(/профил/i)).toHaveCount(0);
+  await noProfileWord();
+  await select(page, { format: 'recipes-profile-backup', version: 1, exportedAt: '2026-10-21T09:00:00.000Z',
+    profile: { recipes, recipeMeta: {}, shoppingItems: [], settings: { theme: 'dark', language: 'ru', shoppingCompletedBehavior: 'keep' } } }, 'copy.json');
+  await expect(page.getByTestId('profile-import-preview')).toBeVisible();
+  await noProfileWord();
+  await select(page, backup(), 'old.json');
+  await expect(page.getByTestId('recipe-import-preview')).toBeVisible();
+  await noProfileWord();
+  await select(page, 'bad json');
+  await expect(page.getByTestId('backup-restore-section').getByRole('alert')).toBeVisible();
+  await noProfileWord();
 });
 
 test.describe('merge and persistence', () => {
@@ -62,7 +100,9 @@ test('invalid JSON, malformed records, unsupported versions and oversize files d
   await settings(page);
   for (const value of ['bad json', { ...backup(), recipes: [incoming, { title: 'broken' }] }, { ...backup(), version: 99 }, ' '.repeat(5 * 1024 * 1024 + 1)]) {
     await select(page, value);
-    await expect(page.getByRole('alert')).toBeVisible();
+    // The error is shown with the restore action, not at the end of the screen.
+    await expect(page.getByTestId('backup-restore-section').getByRole('alert')).toBeVisible();
+    await expect(page.getByTestId('backup-create-section').getByRole('alert')).toHaveCount(0);
     await expect(page.getByTestId('recipe-import-preview')).toHaveCount(0);
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('recipes')!))).toEqual(recipes);
   }
@@ -96,17 +136,18 @@ test('ID collision keeps both recipes and a failed save can be retried', async (
 
 test.describe('empty book', () => {
   test.use({ seedRecipes: [] });
-  test('export is disabled; file picker opens from the button and import restores favourites and history', async ({ page }) => {
+  test('a backup can be made; an old recipe file opens the recipe import and restores favourites and history', async ({ page }) => {
     await settings(page);
-    await expect(page.getByRole('button', { name: 'Выгрузить рецепты', exact: true })).toBeDisabled();
+    await expect(button(page, 'Создать резервную копию')).toBeEnabled();
     const chooserPromise = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: 'Загрузить рецепты', exact: true }).click();
+    await button(page, 'Восстановить из файла').click();
     await (await chooserPromise).setFiles({ name: 'recipes.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup())) });
-    await page.getByRole('button', { name: 'Добавить в мою книгу', exact: true }).click();
+    await expect(page.getByTestId('profile-import-preview')).toHaveCount(0);
+    await button(page, 'Добавить в мою книгу').click();
     await expect(page.getByTestId('recipe-import-preview')).toHaveCount(0);
     await page.reload();
     const downloadPromise = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'Выгрузить рецепты', exact: true }).click();
+    await button(page, 'Создать резервную копию').click();
     expect((await downloadPromise).suggestedFilename()).toMatch(/\.json$/);
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('recipe-book-v1')!).recipeMeta['new-salad'])).toEqual(backup().recipeMeta['new-salad']);
   });
@@ -157,9 +198,45 @@ test.describe('system file sharing', () => {
     });
     await settings(page);
     expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
-    await page.getByRole('button', { name: 'Выгрузить рецепты', exact: true }).click();
-    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('test-shared-backup') ?? '{}').recipes?.length)).toBe(2);
+    await button(page, 'Создать резервную копию').click();
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('test-shared-backup') ?? '{}').profile?.recipes?.length)).toBe(2);
     await expect(page.getByRole('alert')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Загрузить рецепты', exact: true })).toBeEnabled();
+    // A cancelled share is not an export: the date stays unset.
+    await expect(page.getByText('Последняя выгрузка: ещё не было', { exact: true })).toBeVisible();
+    await expect(button(page, 'Восстановить из файла')).toBeEnabled();
+  });
+});
+
+test.describe('large text on a narrow screen', () => {
+  test.use({ viewport: { width: 320, height: 640 } });
+  test('both actions fit, read their full names and the screen does not scroll sideways', async ({ page }) => {
+    await settings(page);
+    await page.evaluate(() => { document.documentElement.style.fontSize = '24px'; });
+    for (const name of ['Создать резервную копию', 'Восстановить из файла']) {
+      const action = button(page, name);
+      await action.scrollIntoViewIfNeeded();
+      await expect(action).toBeInViewport();
+      expect((await action.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+});
+
+test.describe('English', () => {
+  test.use({ seedSettings: { theme: 'dark', language: 'en', shoppingCompletedBehavior: 'moveDown' } });
+  test('the actions, the full-backup preview and the older-file note are translated, without "profile"', async ({ page }) => {
+    await page.goto('/backup');
+    const screen = page.getByTestId('backup-screen');
+    await expect(button(page, 'Create backup')).toBeVisible();
+    await expect(button(page, 'Restore from file')).toBeVisible();
+    await page.getByTestId('recipe-file-input').setInputFiles({ name: 'copy.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({
+      format: 'recipes-profile-backup', version: 1, exportedAt: '2026-10-21T09:00:00.000Z',
+      profile: { recipes, recipeMeta: {}, shoppingItems: [], settings: { theme: 'dark', language: 'en', shoppingCompletedBehavior: 'keep' } },
+    })) });
+    await expect(page.getByTestId('profile-import-preview').getByRole('button')).toHaveText(['Restore data', 'Cancel']);
+    await expect(screen.getByText(/profile/i)).toHaveCount(0);
+    await select(page, backup(), 'old.json');
+    await expect(page.getByTestId('recipe-import-preview')).toContainText('This is an older backup. It holds only recipes, favourites and cooking history.');
+    await expect(screen.getByText(/profile/i)).toHaveCount(0);
   });
 });

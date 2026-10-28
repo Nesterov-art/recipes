@@ -64,21 +64,14 @@ function AboutContent() {
             />
           </SettingsSection>
 
-          {/* Local storage only: no sync and no automatic backup, so the way to a copy is right here. */}
+          {/* Local storage only: no sync and no automatic backup. Backups have one entry, in Settings. */}
           <SettingsSection
             title={t('aboutData')}
             footer={<>
               <SettingsHint>{t('aboutStorage')}</SettingsHint>
               <SettingsHint>{t('aboutBackupHint')}</SettingsHint>
             </>}
-          >
-            <SettingsRow
-              icon="document-text-outline"
-              label={t('backups')}
-              accessory="chevron"
-              onPress={() => router.push('/backup')}
-            />
-          </SettingsSection>
+          />
         </View>
       </ScrollView>
     </View>
