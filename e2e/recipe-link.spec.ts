@@ -105,6 +105,8 @@ test('a link is previewed, cancelling changes nothing, adding saves it once and 
   await expect(preview.getByRole('heading', { name: recipes[0].title, exact: true })).toBeVisible();
   for (const line of recipes[0].ingredients) await expect(preview.getByText(line, { exact: true })).toBeVisible();
   await button(page, 'Отмена').click();
+  // The way back must finish before the next navigation, or that one is aborted.
+  await expect(page).not.toHaveURL(/\/import-link$/);
   expect(await book(page)).toEqual(before);
 
   await openImport(page);
@@ -146,6 +148,83 @@ test('other text, damaged or cut links and a newer version are explained without
   expect(await book(page)).toEqual(before);
   await page.goto(link.replace(/^https?:\/\/[^/]+/, '').replace('#1.', '#7.'));
   await expect(page.getByRole('alert')).toHaveText('Эта ссылка создана в более новой версии Monorec. Обнови приложение.');
+});
+
+// Long links on a small screen: the field stays short and scrolls inside, the button stays in
+// view, and each result (a preview or an error) is brought into view after "Show recipe".
+const longRecipe = (n: number, steps: number) => ({
+  id: `e2e-long-${n}`, title: `Пирог «как у бабушки» & чай #${n} 😊`, category: 'Ужин', time: 40,
+  ingredients: Array.from({ length: 10 }, (_, i) => `Ингредиент ${i} — ${100 * (i + 1)} г`),
+  steps: Array.from({ length: steps }, (_, i) => `${i + 1}. Нарезать лук кольцами, обжарить на сливочном масле до золотистого цвета — <b>не</b> пережарить & добавить #соль.`),
+});
+const long = [longRecipe(1, 6), longRecipe(2, 9)];
+for (const variant of [
+  { name: 'Russian, light, standard text', settings: { theme: 'light', language: 'ru' }, large: false,
+    label: 'Ссылка на рецепт', show: 'Показать рецепт', duplicate: 'Такой рецепт уже есть в книге.', invalid: 'Ссылка повреждена или обрезана. Попроси отправить её ещё раз.' },
+  { name: 'English, dark, large text', settings: { theme: 'dark', language: 'en' }, large: true,
+    label: 'Recipe link', show: 'Show recipe', duplicate: 'This recipe is already in your book.', invalid: 'The link is damaged or cut off. Ask for it to be sent again.' },
+] as const) {
+  test.describe(`long links at 320 px: ${variant.name}`, () => {
+    test.use({
+      viewport: { width: 320, height: 640 },
+      seedRecipes: [[...recipes, ...long], { scope: 'test' }],
+      seedSettings: { ...variant.settings, shoppingCompletedBehavior: 'moveDown' },
+    });
+    test('the field stays short, the button and every result come into view', async ({ page }) => {
+      const links: string[] = [];
+      for (const recipe of long) {
+        await page.goto(`/share-recipe?id=${recipe.id}`);
+        const link = await page.getByTestId('recipe-link').innerText();
+        expect(link.length).toBeGreaterThanOrEqual(2000);
+        expect(link.length).toBeLessThanOrEqual(4000);
+        links.push(link);
+      }
+      await page.goto('/import-link');
+      if (variant.large) await page.evaluate(() => { document.documentElement.style.fontSize = '24px'; });
+      const field = page.getByRole('textbox', { name: variant.label, exact: true });
+      const show = button(page, variant.show);
+      await field.fill(links[0]);
+      // Nothing is cut: the whole link is in the field, which scrolls inside instead of growing.
+      await expect(field).toHaveValue(links[0]);
+      expect((await field.boundingBox())!.height).toBeLessThan(640 * 0.4);
+      expect(await field.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+      await expect(show).toBeInViewport();
+
+      await show.click();
+      const preview = page.getByTestId('recipe-link-preview');
+      await expect(preview.getByRole('heading', { name: long[0].title, exact: true })).toBeInViewport();
+      await expect(preview.getByText(variant.duplicate, { exact: true })).toBeInViewport();
+
+      // Another recipe: the view follows the new preview again.
+      await field.fill(links[1]);
+      await show.click();
+      await expect(preview.getByRole('heading', { name: long[1].title, exact: true })).toBeInViewport();
+      for (const line of [long[1].ingredients[0], long[1].steps[0]]) await expect(preview.getByText(line, { exact: true })).toBeVisible();
+
+      // A damaged link: the error is what comes into view, and no preview stays behind.
+      await field.fill(links[1].slice(0, -40));
+      await show.click();
+      await expect(page.getByRole('alert')).toHaveText(variant.invalid);
+      await expect(page.getByRole('alert')).toBeInViewport();
+      await expect(preview).toHaveCount(0);
+    });
+  });
+}
+
+test('a long link pasted from the clipboard arrives whole', async ({ page, context, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Clipboard permissions are a Chromium feature in Playwright.');
+  await page.goto(`/share-recipe?id=${recipes[0].id}`);
+  const link = await page.getByTestId('recipe-link').innerText();
+  const text = `${recipes[0].title}\n${link}`;
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('/import-link');
+  await page.evaluate(value => navigator.clipboard.writeText(value), text);
+  const field = page.getByRole('textbox', { name: 'Ссылка на рецепт', exact: true });
+  await field.focus();
+  await page.keyboard.press('ControlOrMeta+V');
+  await expect(field).toHaveValue(text);
+  await button(page, 'Показать рецепт').click();
+  await expect(page.getByTestId('recipe-link-preview').getByRole('heading', { name: recipes[0].title, exact: true })).toBeInViewport();
 });
 
 test.describe('English, dark theme', () => {

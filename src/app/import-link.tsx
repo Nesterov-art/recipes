@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { type ComponentRef, useRef, useState } from 'react';
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SharedRecipeView } from '@/components/shared-recipe-view';
@@ -29,12 +29,20 @@ function ImportLinkContent() {
   const [shared, setShared] = useState<SharedRecipe | null>(null);
   const [error, setError] = useState('');
   const saving = useRef(false);
+  // Each "Show recipe" brings its result into view: the preview, or the field with the error.
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const contentY = useRef(0);
+  const fieldY = useRef(0);
+  const [shown, setShown] = useState(0);
+  const reveal = (y: number) => scroll.current?.scrollTo({ y: Math.max(0, contentY.current + y - insets.top - 16), animated: true });
   const backup = (recipe: SharedRecipe, id: string): RecipeBackup => ({
     format: 'recipes-backup', version: 1, exportedAt: new Date().toISOString(), recipes: [{ id, ...recipe }], recipeMeta: {},
   });
   const duplicate = shared !== null && mergeRecipeBackup(recipes, recipeMeta, backup(shared, 'preview')).duplicates > 0;
 
   function show() {
+    Keyboard.dismiss();
+    setShown(count => count + 1);
     setShared(null); setError('');
     try { setShared(parseRecipeLink(text)); } catch (err) {
       setError(t(err instanceof RecipeLinkError ? LINK_ERRORS[err.code] : 'recipeLinkInvalid'));
@@ -54,10 +62,11 @@ function ImportLinkContent() {
   }
 
   return (
-    <View style={styles.screen}>
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 40 }}
-        showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <View style={styles.recipeContent}>
+    // As in the recipe form: iOS insets the scroll view, Android makes room for the keyboard here.
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'android' ? 'padding' : undefined}>
+      <ScrollView ref={scroll} contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 40 }}
+        showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+        <View style={styles.recipeContent} onLayout={event => { contentY.current = event.nativeEvent.layout.y; }}>
           <View style={styles.topBar}>
             <Pressable onPress={() => router.back()} hitSlop={10} style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
               accessibilityRole="button" accessibilityLabel={t('close')}>
@@ -77,18 +86,20 @@ function ImportLinkContent() {
             autoCapitalize="none"
             autoCorrect={false}
             multiline
-            style={[styles.field, styles.fieldMultiline, { marginTop: 20 }]}
+            onLayout={event => { fieldY.current = event.nativeEvent.layout.y; }}
+            style={[styles.field, styles.fieldMultiline, styles.fieldCapped, { marginTop: 20 }]}
           />
-          {!!error && <Text accessibilityRole="alert" style={[styles.settingsHint, { color: colors.danger }]}>{error}</Text>}
+          {!!error && <Text key={shown} onLayout={() => reveal(fieldY.current - 20)} accessibilityRole="alert" style={[styles.settingsHint, { color: colors.danger }]}>{error}</Text>}
           <View style={styles.choiceActions}>
             <Pressable onPress={show} style={({ pressed }) => [styles.choiceSecondary, pressed && { backgroundColor: colors.cardPressed }]} accessibilityRole="button">
               <Text style={styles.choiceSecondaryText}>{t('importLinkShow')}</Text>
             </Pressable>
           </View>
 
-          {shared && <View testID="recipe-link-preview" style={{ marginTop: 28 }}>
+          {shared && <View key={shown} testID="recipe-link-preview" style={{ marginTop: 28 }} onLayout={event => reveal(event.nativeEvent.layout.y)}>
+            {/* What happens to this recipe comes first, above the recipe itself. */}
+            <Text style={[styles.settingsHint, { marginTop: 0, marginBottom: 12 }]}>{duplicate ? t('recipeLinkDuplicate') : t('recipeLinkHint')}</Text>
             <SharedRecipeView recipe={shared} />
-            <Text style={styles.settingsHint}>{duplicate ? t('recipeLinkDuplicate') : t('recipeLinkHint')}</Text>
             <View style={styles.choiceActions}>
               {!duplicate && (
                 <Pressable onPress={() => void add()} style={({ pressed }) => [styles.choicePrimary, pressed && styles.pressed]} accessibilityRole="button">
@@ -102,6 +113,6 @@ function ImportLinkContent() {
           </View>}
         </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }

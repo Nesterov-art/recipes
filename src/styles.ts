@@ -152,6 +152,8 @@ function createStyles(COLORS: AppColors, fontScale: number) {
     outlineColor: 'transparent',
   },
   fieldMultiline: { minHeight: 120, textAlignVertical: 'top' },
+  // A pasted link can be thousands of characters: the field scrolls inside instead of growing.
+  fieldCapped: { maxHeight: fs(176) },
   fieldError: { fontSize: fs(14), lineHeight: fs(20), color: COLORS.danger, marginTop: 6 },
   primaryButton: {
     backgroundColor: COLORS.accent,

@@ -61,7 +61,7 @@ for (const language of ['ru', 'en'] as const) {
     test('validation explains invalid fields, retains drafts and permits the existing zero-minute rule', async ({ page }) => {
       await page.goto('/form');
       const title = page.getByPlaceholder(language === 'ru' ? 'Название рецепта' : 'Recipe title', { exact: true });
-      const time = page.getByPlaceholder('15', { exact: true });
+      const time = page.getByPlaceholder(language === 'ru' ? 'Например, 15' : 'e.g. 15', { exact: true });
       const save = page.getByRole('button', { name: language === 'ru' ? 'Сохранить' : 'Save', exact: true });
       await title.fill('   ');
       await time.fill('-1');

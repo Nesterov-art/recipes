@@ -118,7 +118,7 @@ test('an unchanged form closes without a question', async ({ page }) => {
 
 test('validation keeps the form open with every field as typed', async ({ page }) => {
   await page.goto('/form');
-  await page.getByPlaceholder('15', { exact: true }).fill('-5');
+  await page.getByPlaceholder('Например, 15', { exact: true }).fill('-5');
   await page.getByPlaceholder('Ингредиент — количество', { exact: true }).fill('Мука — 200 г');
   await button(page, 'Сохранить').click();
   await expect(page.getByText('Впиши, как называется блюдо', { exact: true })).toBeVisible();

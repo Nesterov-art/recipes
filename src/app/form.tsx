@@ -155,7 +155,7 @@ function FormContent() {
             onChangeText={value => { setTime(value); setErrors(current => ({ ...current, time: false })); }}
             accessibilityLabel={t('timeMinutes')}
             accessibilityHint={errors.time ? t('invalidTimeMessage') : undefined}
-            placeholder="15"
+            placeholder={t('timePlaceholder')}
             placeholderTextColor={colors.muted}
             selectionColor={colors.text}
             keyboardType="number-pad"

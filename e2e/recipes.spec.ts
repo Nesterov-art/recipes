@@ -30,7 +30,7 @@ test.describe('empty book', () => {
     await expect(page.getByText(/Пока нет рецептов/)).toBeVisible();
     await page.getByRole('button', { name: 'Добавить рецепт', exact: true }).click();
     await page.getByPlaceholder('Название рецепта', { exact: true }).fill('Тестовый салат');
-    await page.getByPlaceholder('15', { exact: true }).fill('5');
+    await page.getByPlaceholder('Например, 15', { exact: true }).fill('5');
     await page.getByPlaceholder('Ингредиент — количество', { exact: true }).fill('Огурец — 1 шт\nСыр — 50 г');
     await page.getByPlaceholder('Шаги приготовления', { exact: true }).fill('Нарезать.\nПеремешать.');
     await page.getByRole('button', { name: 'Сохранить', exact: true }).click();

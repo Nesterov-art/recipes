@@ -32,7 +32,8 @@ test('recipe form keeps focus and text after a scroll, and saving stays reachabl
   await page.goto('/form');
   const title = page.getByPlaceholder('Название рецепта', { exact: true });
   await expectTypingSurvivesScroll(page, title, 'Борщ');
-  const time = page.getByPlaceholder('15', { exact: true });
+  // The hint is an example, not a value that looks already set.
+  const time = page.getByPlaceholder('Например, 15', { exact: true });
   await expectTypingSurvivesScroll(page, time, '45');
   await expect(title).toHaveValue('Борщ');
 
