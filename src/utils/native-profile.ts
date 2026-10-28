@@ -3,7 +3,7 @@ import { validateProfile, type Profile } from './profile-backup.ts';
 import { decodeRaw, LAST_BACKUP_KEY, ProfileRestoreError, recoverProfile } from './profile-transaction.ts';
 import type { ReadEntry } from './safe-storage.ts';
 import {
-  assertProfileReady, journalSettled, PROFILE_JOURNAL_KEY, PROFILE_JOURNAL_V2_KEY, requireProfileRecovery, withProfileLock,
+  assertProfileReady, journalSettled, PROFILE_JOURNAL_KEY, PROFILE_JOURNAL_V2_KEY, reportStorageSpace, requireProfileRecovery, withProfileLock,
 } from './storage-coordination.ts';
 import { bookConfig, onboardingConfig, settingsConfig, shoppingConfig } from './storage-models.ts';
 import { utf8Length } from './utf8.ts';
@@ -21,8 +21,11 @@ type Journal = {
   before: Record<CoreKey, string | null>; after: Record<CoreKey, string>;
 };
 
-export function createNativeStorage(raw: RawStorage) {
-  return new ChunkedStorage(raw, () => journalPins(raw));
+// budget: the database limit where one exists (Android); saves that would not fit are refused.
+export function createNativeStorage(raw: RawStorage, budget?: number) {
+  let warned = false;
+  const onLow = () => { if (!warned) { warned = true; reportStorageSpace('low'); } };
+  return new ChunkedStorage(raw, () => journalPins(raw), budget === undefined ? undefined : { budget, onLow });
 }
 // While a restore is unfinished, both sides of it must survive any cleanup.
 async function journalPins(raw: RawStorage): Promise<Pins> {

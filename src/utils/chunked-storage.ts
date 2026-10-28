@@ -1,4 +1,4 @@
-import type { StorageAdapter } from './safe-storage.ts';
+import { StorageSpaceError, type StorageAdapter } from './safe-storage.ts';
 import { utf8Length } from './utf8.ts';
 
 // Native-only layout (stage 7.2). Android reads one SQLite row through a ~2 MiB CursorWindow,
@@ -17,6 +17,13 @@ export type Pins = Set<string> | 'all';
 
 export const PART_BYTES = 256 * 1024;
 const INLINE_BYTES = 32 * 1024;
+// Room checks (Android): a save briefly holds the previous, current and new value of its key.
+// A growing save may reach 90% of the database limit, a shrinking one 97% (SQLite adds about
+// 1% of pages and index). Below 70% the stored total is not re-read; above 75% a warning is due.
+// Values up to ROOM_RESERVE are not checked: they always fit beside it.
+export type Room = { budget: number; onLow?: () => void };
+const ROOM_RESERVE = 64 * 1024;
+const GROW_SHARE = 0.9, SHRINK_SHARE = 0.97, QUICK_SHARE = 0.7, LOW_SHARE = 0.75;
 const PREFIX = 'mr2:';
 // Written over a legacy key once its value is served from a manifest: old code then reads
 // an unsupported value instead of stale data, and new code never mistakes it for data.
@@ -78,9 +85,14 @@ export class ChunkedStorage {
   private queues = new Map<string, Promise<unknown>>();
   readonly raw: RawStorage;
   private pins: () => Promise<Pins>;
-  constructor(raw: RawStorage, pins: () => Promise<Pins> = async () => new Set()) {
+  private room?: Room;
+  // Upper bound of the stored bytes: an exact count plus what this instance wrote since.
+  // Removals are not subtracted; anything else that writes makes it unknown again.
+  private known?: number;
+  constructor(raw: RawStorage, pins: () => Promise<Pins> = async () => new Set(), room?: Room) {
     this.raw = raw;
     this.pins = pins;
+    this.room = room;
   }
   private serial<T>(key: string, task: () => Promise<T>): Promise<T> {
     const run = (this.queues.get(key) ?? Promise.resolve()).catch(() => {}).then(task);
@@ -92,14 +104,25 @@ export class ChunkedStorage {
     return raw === null ? null : parseManifest(raw);
   }
   getItem = (key: string) => this.serial(key, () => this.read(key));
-  setItem = (key: string, value: string) => this.serial(key, async () => { await this.commit(await this.write(key, value)); });
+  setItem = (key: string, value: string) => this.serial(key, async () => {
+    try {
+      const bytes = await this.checkRoom(key, value);
+      await this.commit(await this.write(key, value));
+      if (this.known !== undefined) this.known += bytes + Math.ceil(bytes / PART_BYTES) * 64 + 2048;
+    } catch (error) {
+      if (!(error instanceof StorageSpaceError)) this.known = undefined;
+      throw error;
+    }
+  });
   removeItem = (key: string) => this.serial(key, async () => { await this.commit(await this.write(key, null)); });
   // Transactions stage several keys, record them in a journal, then switch the manifests.
-  stage = (key: string, value: string | null) => this.serial(key, () => this.write(key, value));
+  // Their writes are not counted, so the stored total is read again afterwards.
+  stage = (key: string, value: string | null) => this.serial(key, () => { this.known = undefined; return this.write(key, value); });
   switch = (staged: Staged) => this.serial(staged.key, () => this.commit(staged));
   discard = (staged: Staged) => this.serial(staged.key, () => this.remove(staged.written));
   // Sets a manifest back to an exact earlier raw value (null: back to the legacy key).
   restoreManifest = (key: string, raw: string | null, allowed: (string | null)[]) => this.serial(key, async () => {
+    this.known = undefined;
     const current = await this.raw.getItem(manifestKey(key));
     if (current === raw) return;
     if (!allowed.includes(current)) throw new StorageIntegrityError('Unexpected manifest');
@@ -124,6 +147,20 @@ export class ChunkedStorage {
       try { total += utf8Length(key) + utf8Length(await this.raw.getItem(key) ?? ''); } catch { total += 2 * 1024 * 1024; }
     }
     return total;
+  }
+  // Refuses a save that would not fit before any part is written; returns its size.
+  private async checkRoom(key: string, value: string) {
+    const bytes = utf8Length(value);
+    if (!this.room || bytes <= ROOM_RESERVE) return bytes;
+    const { budget, onLow } = this.room;
+    if (this.known !== undefined && this.known + bytes + ROOM_RESERVE <= budget * QUICK_SHARE) return bytes;
+    this.known = await this.usage();
+    const peak = this.known + bytes + ROOM_RESERVE;
+    const current = (await this.readManifest(key))?.current;
+    const share = current && value.length <= current.length ? SHRINK_SHARE : GROW_SHARE;
+    if (peak > budget * share) throw new StorageSpaceError(`No room to save ${key}`);
+    if (peak > budget * LOW_SHARE) onLow?.();
+    return bytes;
   }
   private async read(key: string) {
     const manifest = await this.readManifest(key);

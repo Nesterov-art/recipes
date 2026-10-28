@@ -1,4 +1,4 @@
-import { assertProfileReady, ProfileRecoveryRequired, withProfileLock } from './storage-coordination.ts';
+import { assertProfileReady, ProfileRecoveryRequired, reportStorageSpace, withProfileLock } from './storage-coordination.ts';
 
 // No React/native dependencies: the production persistence path is unit-testable.
 export type StorageAdapter = {
@@ -6,6 +6,8 @@ export type StorageAdapter = {
   setItem: (key: string, value: string) => Promise<void>;
 };
 export type ReadEntry = { raw: string | null; error?: boolean };
+// A save refused before anything was written because it would not fit (native storage).
+export class StorageSpaceError extends Error {}
 export type StorageIssue = 'read' | 'invalid' | 'unsupported' | 'write' | 'conflict' | 'recovery' | 'mirror' | 'profile';
 export type LoadResult<T> = {
   data?: T;
@@ -113,7 +115,14 @@ export class SafeStore<T> {
       }
       if (encoded[key] !== expected.raw) await this.storage.setItem(key, encoded[key]);
       this.entries[key] = { raw: encoded[key] };
-    } catch {
+    } catch (error) {
+      // Nothing was written and retrying cannot help: the change is declined, not kept
+      // pending, so the store stays usable for smaller saves.
+      if (error instanceof StorageSpaceError) {
+        this.publish({ saving: false, initialized: true });
+        reportStorageSpace('full');
+        return false;
+      }
       this.pending = { data, after, checkSources };
       this.publish({ issue: 'write', saving: false });
       return false;

@@ -16,6 +16,15 @@ export function withProfileLock<T>(task: () => Promise<T>): Promise<T> {
   return next;
 }
 export function requireProfileRecovery() { recoveryListeners.forEach(listener => listener()); }
+
+// 'low': the next large save is close to the database limit; 'full': a save was refused.
+export type StorageSpace = 'low' | 'full';
+const spaceListeners = new Set<(level: StorageSpace) => void>();
+export function reportStorageSpace(level: StorageSpace) { spaceListeners.forEach(listener => listener(level)); }
+export function subscribeStorageSpace(listener: (level: StorageSpace) => void) {
+  spaceListeners.add(listener);
+  return () => { spaceListeners.delete(listener); };
+}
 export function subscribeProfileRecovery(listener: () => void) {
   recoveryListeners.add(listener);
   return () => { recoveryListeners.delete(listener); };

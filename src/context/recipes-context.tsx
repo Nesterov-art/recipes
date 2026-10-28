@@ -2,10 +2,12 @@ import {
   createContext,
   type PropsWithChildren,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
+import { Alert } from 'react-native';
 
 import {
   CATEGORIES,
@@ -25,6 +27,7 @@ import { StorageGuard } from '@/components/storage-guard';
 import { pickSmartRandom } from '@/utils/smart-random';
 import { useSettings } from '@/context/settings-context';
 import { useToast } from '@/context/toast-context';
+import { subscribeStorageSpace } from '@/utils/storage-coordination';
 
 type RecipeSort = 'recent' | 'asc' | 'desc';
 
@@ -66,6 +69,12 @@ export function RecipesProvider({ children }: PropsWithChildren) {
   const [filter, setFilter] = useState<RecipeFilter>('Все');
   const [sort, setSort] = useState<RecipeSort>('recent');
   const lastRandomId = useRef<string | null>(null);
+
+  // Android only: a refused save is a dialog (it needs reading), the early warning a toast.
+  useEffect(() => subscribeStorageSpace(level => {
+    if (level === 'full') Alert.alert(t('storageSpaceTitle'), t('storageSpaceFull'));
+    else showToast(t('storageSpaceLow'));
+  }), [showToast, t]);
 
   const visible = useMemo(() => {
     const terms = query.toLowerCase().split(/[,\s]+/).filter(Boolean);

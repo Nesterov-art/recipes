@@ -10,8 +10,8 @@ import { captureEmergency, emergencyComplete, emergencyDiagnostic } from './emer
 import { captureProfileV2, cleanupLegacy, CORE_KEYS, createNativeStorage, migrateLegacy, recoverNative, restoreProfileV2 } from './native-profile.ts';
 import { serializeProfileBackup, parseBackupFile, validateProfile } from './profile-backup.ts';
 import { LAST_BACKUP_KEY, ProfileRestoreError } from './profile-transaction.ts';
-import { SafeStore } from './safe-storage.ts';
-import { assertProfileReady, PROFILE_JOURNAL_KEY, PROFILE_JOURNAL_V2_KEY } from './storage-coordination.ts';
+import { SafeStore, StorageSpaceError } from './safe-storage.ts';
+import { assertProfileReady, PROFILE_JOURNAL_KEY, PROFILE_JOURNAL_V2_KEY, subscribeStorageSpace } from './storage-coordination.ts';
 import { bookConfig, onboardingConfig } from './storage-models.ts';
 
 const KiB = 1024, MiB = 1024 * KiB;
@@ -316,6 +316,128 @@ test('a restored large profile can still be edited, or the restore is refused wi
     break;
   }
   assert.deepEqual(accepted, [3000], 'a profile that still fits must stay restorable');
+});
+
+const addRecipes = (count, seed) => book => ({ ...book, recipes: [...makeProfile(count, seed).recipes, ...book.recipes] });
+const dropFirst = book => ({ ...book, recipes: book.recipes.slice(1) });
+const bookOf = async io => JSON.parse(await createNativeStorage(io).getItem('recipe-book-v1'));
+
+// Ordinary growth: each save of the book briefly holds three copies of it. A save that would
+// not fit is refused before anything is written, and the store stays usable for the rest.
+test('a growing book is refused before the database fills; deleting and exporting still work', { timeout: 300_000 }, async t => {
+  const io = sqliteDevice(t);
+  const storage = createNativeStorage(io, 32 * MiB);
+  await recoverNative(storage);
+  await restore(storage, makeProfile(2000, 'a'), 32 * MiB);
+  const store = new SafeStore(storage, bookConfig(false)); await store.load();
+  const reports = [];
+  t.after(subscribeStorageSpace(level => reports.push(level)));
+  let refused = null, saved = 0;
+  for (let round = 0; round < 20 && !refused; round++) {
+    const before = io.snapshot(), count = store.getSnapshot().data.recipes.length;
+    if (await store.update(addRecipes(500, `g${round}`))) { saved++; continue; }
+    refused = { before, count };
+  }
+  assert(saved > 0 && refused, 'the book must grow for a while and then be refused');
+  assert.deepEqual(io.snapshot(), refused.before, 'a refused save wrote something');
+  assert.equal(store.getSnapshot().issue, undefined, 'a refused save must not block the store');
+  assert.equal(store.getSnapshot().data.recipes.length, refused.count);
+  // The warning came once, before the first refusal.
+  assert.deepEqual(reports, ['low', 'full']);
+  // Trying again is refused again, still without writing or blocking. The success callback,
+  // which closes the recipe form, does not run, so the form keeps what was typed.
+  let closed = false;
+  assert.equal(await store.update(addRecipes(500, 'again'), () => { closed = true; }), false);
+  assert.equal(closed, false);
+  assert.deepEqual(io.snapshot(), refused.before);
+  assert.equal(store.getSnapshot().issue, undefined);
+  // Smaller saves still go through, and every change is there after a restart.
+  assert.equal(await store.update(dropFirst), true, 'deleting a recipe after the refusal');
+  assert.equal((await bookOf(io)).recipes.length, refused.count - 1);
+  const exported = parseBackupFile(serializeProfileBackup(await profileOf(createNativeStorage(io, 32 * MiB)))).profile;
+  assert.equal(exported.recipes.length, refused.count - 1);
+});
+
+// A database already filled by an earlier build: even a smaller book does not fit next to its
+// two generations. The save is refused with nothing written, and the profile can be exported.
+test('when even a deletion does not fit, it is refused without blocking and the profile exports', { timeout: 300_000 }, async t => {
+  const io = sqliteDevice(t);
+  const storage = createNativeStorage(io);
+  await recoverNative(storage);
+  await io.setItem('storage-recovery-v1:recipe-book-v1:1:0.5', 'А'.repeat(5 * MiB)); // Old archive, 10 MiB.
+  for (const seed of ['a', 'b']) await restore(storage, makeProfile(2500, seed));
+  const guarded = createNativeStorage(io, 32 * MiB);
+  const store = new SafeStore(guarded, bookConfig(false)); await store.load();
+  const before = io.snapshot();
+  assert.equal(await store.update(dropFirst), false);
+  assert.deepEqual(io.snapshot(), before);
+  assert.equal(store.getSnapshot().issue, undefined, 'the refusal must not become a pending write');
+  assert.equal(store.getSnapshot().data.recipes.length, 2500);
+  assert.equal((await profileOf(guarded)).recipes.length, 2500);
+  // Independent small values still save.
+  assert.equal(await guarded.setItem(LAST_BACKUP_KEY, new Date().toISOString()), undefined);
+});
+
+// The decision near the limit always rests on a fresh count of the stored rows, whatever
+// happened before: saves, failures, restarts, restores, interrupted restores, cleanup.
+test('the room check stays exact after writes, failures, restarts, restores and cleanup', { timeout: 300_000 }, async () => {
+  const budget = 32 * MiB, reserve = 64 * KiB;
+  const prepare = {
+    'ordinary save': async (io, storage) => { await storage.setItem('recipe-book-v1', JSON.stringify({ recipes: makeProfile(400, 'w').recipes, recipeMeta: {} })); },
+    'failed save': async (io, storage) => {
+      io.fail = key => key.includes('#');
+      await assert.rejects(storage.setItem('recipe-book-v1', JSON.stringify({ recipes: makeProfile(400, 'f').recipes, recipeMeta: {} })));
+      io.fail = () => false;
+    },
+    'restart': async () => {},
+    'restore': async (io, storage) => { await restore(storage, makeProfile(500, 'r'), budget); },
+    'interrupted restore': async (io, storage) => {
+      io.crashAt = io.writes + 9;
+      await assert.rejects(restore(storage, makeProfile(500, 'i'), budget));
+      io.dead = false; io.crashAt = Infinity;
+      await recoverNative(createNativeStorage(io, budget));
+    },
+    'cleanup of leftover parts': async (io, storage) => {
+      await storage.setItem('probe-small', 'x'.repeat(100 * KiB)); // Counts the stored rows.
+      io.data.set('mr2:recipe-book-v1#leftover.0', 'y'.repeat(MiB));
+      await storage.collectAll();
+    },
+  };
+  for (const [name, step] of Object.entries(prepare)) {
+    const io = device({ seed: legacy(makeProfile(300)) });
+    const storage = createNativeStorage(io, budget);
+    await recoverNative(storage);
+    await step(io, storage);
+    const used = io.total(), room = budget * 0.9 - used - reserve;
+    const over = 'x'.repeat(Math.ceil(room + 32 * KiB)), under = 'x'.repeat(Math.floor(room - 32 * KiB));
+    const before = new Map(io.data);
+    await assert.rejects(storage.setItem('probe-big', over), StorageSpaceError, `${name}: over the limit`);
+    assert.deepEqual(io.data, before, `${name}: a refused save wrote something`);
+    await storage.setItem('probe-big', under);
+    assert.equal(await createNativeStorage(io).getItem('probe-big'), under, `${name}: under the limit`);
+  }
+});
+
+test('saves far from the limit read nothing extra; small values are never checked', async () => {
+  const counted = budget => {
+    const io = device({ seed: legacy(makeProfile(300)) });
+    const { getItem } = io; let reads = 0;
+    io.getItem = async key => { reads++; return getItem(key); };
+    return { io, storage: createNativeStorage(io, budget), reads: () => reads };
+  };
+  const plain = counted(undefined), guarded = counted(32 * MiB);
+  for (const { storage } of [plain, guarded]) await recoverNative(storage);
+  const book = n => JSON.stringify({ recipes: makeProfile(300, `s${n}`).recipes, recipeMeta: {} });
+  // The first large save of a session counts the stored rows once.
+  for (const { storage } of [plain, guarded]) await storage.setItem('recipe-book-v1', book(0));
+  const [plainStart, guardedStart] = [plain.reads(), guarded.reads()];
+  for (let n = 1; n <= 5; n++) {
+    for (const { storage } of [plain, guarded]) {
+      await storage.setItem('recipe-book-v1', book(n));
+      await storage.setItem('shopping-list-v1', JSON.stringify([{ id: `i${n}`, name: 'Молоко', text: 'Молоко', checked: false }]));
+    }
+  }
+  assert.equal(guarded.reads() - guardedStart, plain.reads() - plainStart);
 });
 
 test('migration copies valid legacy data, fences out older builds and keeps legacy values', async () => {
