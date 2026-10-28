@@ -115,10 +115,12 @@ export class ChunkedStorage {
       try { await this.collect(key); } catch { /* An unreadable manifest keeps every part of its key. */ }
     }
   }
-  // Sum of stored bytes; an unreadable row counts as the largest readable one could be.
-  async usage() {
+  // Sum of stored bytes of the rows `include` selects; an unreadable row counts as the
+  // largest readable one could be.
+  async usage(include: (key: string) => boolean = () => true) {
     let total = 0;
     for (const key of await this.raw.getAllKeys()) {
+      if (!include(key)) continue;
       try { total += utf8Length(key) + utf8Length(await this.raw.getItem(key) ?? ''); } catch { total += 2 * 1024 * 1024; }
     }
     return total;

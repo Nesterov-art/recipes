@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { checksum, LEGACY_FENCE, manifestKey, PART_BYTES, splitUtf8, StorageIntegrityError } from './chunked-storage.ts';
 import { captureEmergency, emergencyComplete, emergencyDiagnostic } from './emergency-export.ts';
@@ -49,6 +53,33 @@ function device({ rowLimit = 2 * MiB, dbLimit = 32 * MiB, seed = {} } = {}) {
   return io;
 }
 function restart(io) { io.dead = false; io.crashAt = Infinity; io.fail = () => false; return createNativeStorage(io); }
+
+// The AsyncStorage database of Android itself: the same table, 4 KiB pages, WAL, and the
+// limit as max_page_count (setMaximumSize). Every setItem/removeItem is one transaction,
+// as in AsyncStorageModule. Page and index overhead are counted by SQLite, not estimated.
+function sqliteDevice(t, limit = 32 * MiB) {
+  const dir = mkdtempSync(join(tmpdir(), 'rkstorage-'));
+  const db = new DatabaseSync(join(dir, 'RKStorage'));
+  t.after(() => { db.close(); rmSync(dir, { recursive: true, force: true }); });
+  db.exec('PRAGMA page_size = 4096; PRAGMA auto_vacuum = FULL;');
+  db.exec('CREATE TABLE catalystLocalStorage (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+  db.exec(`PRAGMA journal_mode = WAL; PRAGMA max_page_count = ${limit / 4096};`);
+  const get = db.prepare('SELECT value FROM catalystLocalStorage WHERE key = ?');
+  const set = db.prepare('INSERT OR REPLACE INTO catalystLocalStorage VALUES (?, ?)');
+  const del = db.prepare('DELETE FROM catalystLocalStorage WHERE key = ?');
+  const rows = db.prepare('SELECT key, value FROM catalystLocalStorage ORDER BY key');
+  const transaction = statement => {
+    db.exec('BEGIN');
+    try { statement(); db.exec('COMMIT'); } catch (error) { db.exec('ROLLBACK'); throw error; }
+  };
+  return {
+    async getItem(key) { return get.get(key)?.value ?? null; },
+    async setItem(key, value) { transaction(() => set.run(key, value)); },
+    async removeItem(key) { transaction(() => del.run(key)); },
+    async getAllKeys() { return rows.all().map(row => row.key); },
+    snapshot: () => rows.all().map(row => [row.key, row.value]),
+  };
+}
 
 const step = 'Нарезать лук кольцами, обжарить на сливочном масле до золотистого цвета, добавить чеснок и томить под крышкой. ';
 // Long recipes and a large cooking history, Cyrillic text (2 bytes per letter in UTF-8).
@@ -251,6 +282,40 @@ test('database limit: the restore is refused before writing; an unexpected overf
   assert.deepEqual(await profileOf(storage), a);
   assert.deepEqual(orphans(io), []);
   assert.deepEqual(io.data, snapshot);
+});
+
+// After a restore the old book stays as the previous generation, and every later save of
+// the book briefly holds three copies of it (previous, current, new). A restore is fine
+// only if those saves fit; otherwise it must be refused before anything is written.
+test('a restored large profile can still be edited, or the restore is refused with nothing changed', { timeout: 300_000 }, async t => {
+  const io = sqliteDevice(t);
+  const storage = createNativeStorage(io);
+  await recoverNative(storage);
+  for (const count of [1000, 2000]) await restore(storage, makeProfile(count, 'a'), 32 * MiB);
+  const existing = await profileOf(storage);
+  const rename = n => book => ({ ...book, recipes: book.recipes.map((recipe, i) => i === 0 ? { ...recipe, title: `Изменённый рецепт ${n}` } : recipe) });
+  const accepted = [];
+  for (const count of [4500, 3000]) {
+    const before = io.snapshot();
+    const outcome = await restore(storage, makeProfile(count, `b${count}`), 32 * MiB).then(() => 'restored', error => error);
+    if (outcome !== 'restored') {
+      assert.equal(outcome.code, 'space', `${count} recipes: ${outcome}`);
+      assert.deepEqual(io.snapshot(), before, `${count} recipes: a refused restore wrote something`);
+      assert.deepEqual(await profileOf(storage), existing);
+      continue;
+    }
+    accepted.push(count);
+    // Two saves: the first keeps the old book as the previous generation, the second the restored one.
+    for (const n of [1, 2]) {
+      const store = new SafeStore(storage, bookConfig(false)); await store.load();
+      assert.equal(await store.update(rename(n)), true, `${count} recipes: edit ${n} after the restore was not saved`);
+    }
+    const reread = JSON.parse(await createNativeStorage(io).getItem('recipe-book-v1'));
+    assert.equal(reread.recipes[0].title, 'Изменённый рецепт 2');
+    assert.equal(reread.recipes.length, count);
+    break;
+  }
+  assert.deepEqual(accepted, [3000], 'a profile that still fits must stay restorable');
 });
 
 test('migration copies valid legacy data, fences out older builds and keeps legacy values', async () => {

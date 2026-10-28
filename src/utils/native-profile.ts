@@ -65,6 +65,23 @@ function encodeProfile(profile: Profile): Record<CoreKey, string> {
 }
 const spaceError = (error: unknown) => error instanceof Error && /full|quota|space/i.test(error.message);
 
+// Journal, manifests and small keys written by a restore.
+const RESERVE = 64 * 1024;
+const coreRow = (key: string) => CORE_KEYS.some(core => key === manifestKey(core) || key.startsWith(`${manifestKey(core)}#`));
+async function usageSplit(storage: ChunkedStorage) {
+  const others = await storage.usage(key => !coreRow(key));
+  return { others, total: others + await storage.usage(coreRow) };
+}
+// The most a restore and the saves after it hold at once. During the restore: everything
+// stored plus the new values. After it, each key keeps its old value as the previous
+// generation until its next save, and every save adds one more copy of the value saved.
+function restorePeak(usage: { others: number; total: number }, before: CoreRaw, values: Record<CoreKey, string>) {
+  const after = CORE_KEYS.map(key => utf8Length(values[key]));
+  const staged = after.reduce((sum, size) => sum + size, 0);
+  const kept = CORE_KEYS.reduce((sum, key, i) => sum + Math.max(utf8Length(before[key] ?? ''), after[i]) + after[i], 0);
+  return Math.max(usage.total + staged, usage.others + kept + Math.max(...after)) + RESERVE;
+}
+
 export function captureProfileV2(storage: ChunkedStorage) {
   return withProfileLock(async () => {
     await assertProfileReady(storage);
@@ -80,9 +97,8 @@ export function restoreProfileV2(storage: ChunkedStorage, input: Profile, expect
     const before = await readCore(storage);
     if (CORE_KEYS.some(key => before[key] !== expected[key])) throw new ProfileRestoreError('conflict');
     const values = encodeProfile(profile);
-    if (budget !== undefined) {
-      const needed = CORE_KEYS.reduce((sum, key) => sum + utf8Length(values[key]), 64 * 1024);
-      if (await storage.usage() + needed > budget * 0.9) throw new ProfileRestoreError('space');
+    if (budget !== undefined && restorePeak(await usageSplit(storage), before, values) > budget * 0.9) {
+      throw new ProfileRestoreError('space');
     }
     const staged: Staged[] = [];
     const discard = async () => { for (const item of staged) await storage.discard(item).catch(() => {}); };
