@@ -1,5 +1,5 @@
 import { StorageSpaceError, type StorageAdapter } from './safe-storage.ts';
-import { utf8Length } from './utf8.ts';
+import { utf8FitsIn, utf8Length } from './utf8.ts';
 
 // Native-only layout (stage 7.2). Android reads one SQLite row through a ~2 MiB CursorWindow,
 // so a logical value is stored as small parts plus a manifest. The manifest write is the
@@ -193,7 +193,7 @@ export class ChunkedStorage {
     if (value !== null) {
       const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
       current = { id, length: value.length, sum: checksum(value) };
-      if (utf8Length(value) <= INLINE_BYTES) current.inline = value;
+      if (utf8FitsIn(value, INLINE_BYTES)) current.inline = value;
       else {
         const parts = splitUtf8(value);
         current.parts = parts.map(part => ({ length: part.length, sum: checksum(part) }));

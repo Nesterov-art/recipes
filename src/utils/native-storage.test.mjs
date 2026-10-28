@@ -628,6 +628,22 @@ test('opening the restore preview and cancelling writes nothing', async () => {
   assert.equal(io.writes, writes);
 });
 
+test('values of up to 32 KiB of UTF-8 stay in the manifest, larger ones go to parts, at the same bounds', async () => {
+  const io = device();
+  const storage = createNativeStorage(io);
+  const cases = [
+    ['a'.repeat(32768), true], ['a'.repeat(32769), false], ['я'.repeat(16384), true], ['я'.repeat(16385), false],
+    ['😊'.repeat(8192), true], ['😊'.repeat(8192) + 'a', false], ['中'.repeat(10922), true], ['中'.repeat(10923), false],
+    ['\ud800'.repeat(10922), true], ['\ud800'.repeat(10923), false],
+  ];
+  for (const [index, [value, inline]] of cases.entries()) {
+    await storage.setItem(`k${index}`, value);
+    const { current } = JSON.parse(io.data.get(manifestKey(`k${index}`)));
+    assert.equal(current.inline !== undefined, inline, `case ${index}: ${Buffer.byteLength(value)} bytes`);
+    assert.equal(await storage.getItem(`k${index}`), value);
+  }
+});
+
 test('the web layout is unchanged: the book still writes its mirrors there', async () => {
   const store = new SafeStore({ data: new Map(), async getItem(k) { return this.data.get(k) ?? null; }, async setItem(k, v) { this.data.set(k, v); } }, bookConfig());
   await store.load();

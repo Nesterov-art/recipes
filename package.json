@@ -37,7 +37,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "test": "node --test src/utils/shopping.test.mjs src/utils/recipe-matches.test.mjs src/utils/recipe-backup.test.mjs src/utils/safe-storage.test.mjs src/utils/profile-backup.test.mjs src/utils/smart-random.test.mjs src/utils/illustrations.test.mjs src/utils/cooking.test.mjs src/utils/cooking-history.test.mjs src/utils/native-storage.test.mjs src/utils/folder-export.test.mjs src/utils/recipe-link.test.mjs",
+    "test": "node --test src/utils/shopping.test.mjs src/utils/recipe-matches.test.mjs src/utils/recipe-backup.test.mjs src/utils/safe-storage.test.mjs src/utils/profile-backup.test.mjs src/utils/smart-random.test.mjs src/utils/illustrations.test.mjs src/utils/cooking.test.mjs src/utils/cooking-history.test.mjs src/utils/native-storage.test.mjs src/utils/folder-export.test.mjs src/utils/recipe-link.test.mjs src/utils/utf8.test.mjs",
     "web:e2e": "expo export --platform web && node scripts/serve-e2e.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
