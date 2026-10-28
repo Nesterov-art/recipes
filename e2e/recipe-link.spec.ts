@@ -5,24 +5,61 @@ const special = {
   id: 'e2e-special', title: 'Сырники «как у бабушки» & чай #1', category: 'Завтрак', time: 25,
   ingredients: ['Творог 5% — 400 г', 'Сахар — по вкусу 😊'], steps: ['Смешать творог и сахар.', 'Обжарить по 3 минуты — до золотистого цвета.'],
 };
+// Far beyond what one link can carry (4 000 characters).
+const tooLong = {
+  id: 'e2e-too-long', title: 'Очень длинный пирог', category: null, time: 90, ingredients: ['Мука — 500 г'],
+  steps: Array.from({ length: 20 }, (_, i) => `${i + 1}. Замесить тесто, дать подняться в тёплом месте, обмять и снова дать подняться.`),
+};
 const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
 const book = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('recipe-book-v1')!) as {
   recipes: { id: string; title: string; ingredients: string[]; steps: string[] }[]; recipeMeta: Record<string, unknown>;
 });
 
-// Opens the share screen of a recipe and returns the link it shows.
+// The browser's share menu and clipboard, replaced so every engine behaves the same and the
+// test sees what was handed over. 'copy': no share menu, copying works. 'share': the menu
+// opens. 'cancel': the user closes it. 'copyFails': no menu and copying is refused.
+// 'slowShare': the menu stays open for a while.
+type ShareMode = 'copy' | 'share' | 'cancel' | 'copyFails' | 'slowShare';
+async function stubShare(page: Page, mode: ShareMode) {
+  await page.addInitScript((mode: ShareMode) => {
+    const record = window as unknown as { shared: ShareData[]; copied: string[] };
+    record.shared = []; record.copied = [];
+    const share = mode === 'copy' || mode === 'copyFails' ? undefined : async (data: ShareData) => {
+      record.shared.push(data);
+      if (mode === 'cancel') throw new DOMException('Share canceled', 'AbortError');
+      if (mode === 'slowShare') await new Promise(resolve => setTimeout(resolve, 1500));
+    };
+    const clipboard = { writeText: async (text: string) => {
+      if (mode === 'copyFails') throw new DOMException('Denied', 'NotAllowedError');
+      record.copied.push(text);
+    } };
+    Object.defineProperty(Navigator.prototype, 'share', { configurable: true, get: () => share });
+    Object.defineProperty(Navigator.prototype, 'clipboard', { configurable: true, get: () => clipboard });
+  }, mode);
+}
+const handedOver = (page: Page) => page.evaluate(() => {
+  const record = window as unknown as { shared: ShareData[]; copied: string[] };
+  return { shared: record.shared, copied: record.copied };
+});
+// "Share recipe" on the recipe screen copies the link (no share menu in this browser).
 async function linkOf(page: Page, recipeId: string) {
   await page.goto(`/recipe/${recipeId}`);
   await button(page, 'Поделиться рецептом').click();
-  await expect(page).toHaveURL(/\/share-recipe\?id=/);
-  const link = await page.getByTestId('recipe-link').innerText();
+  await expect(page.getByText('Ссылка скопирована', { exact: true })).toBeVisible();
+  const { copied } = await handedOver(page);
+  const link = copied.at(-1)!;
   expect(link).toMatch(/\/shared-recipe#1\.[A-Za-z0-9_-]+$/);
   return link;
 }
 async function openImport(page: Page) {
   await openHome(page);
+  await button(page, 'Добавить рецепт').click();
   await button(page, 'Добавить по ссылке').click();
   await expect(page).toHaveURL(/\/import-link$/);
+}
+// The recipe the link carries, decoded here independently of the app.
+function payloadOf(link: string) {
+  return JSON.parse(Buffer.from(link.split('#1.')[1], 'base64url').toString('utf8')) as Record<string, unknown>;
 }
 async function show(page: Page, text: string) {
   await page.getByRole('textbox', { name: 'Ссылка на рецепт', exact: true }).fill(text);
@@ -30,23 +67,83 @@ async function show(page: Page, text: string) {
 }
 
 test.describe('sharing', () => {
-  test.use({ seedRecipes: [[...recipes, special], { scope: 'test' }] });
+  test.use({ seedRecipes: [[...recipes, special, tooLong], { scope: 'test' }] });
 
-  test('a recipe gives a link that says what is sent and can be copied', async ({ page, context, browserName }) => {
+  test('a recipe too long for a link is explained and nothing is handed over', async ({ page }) => {
+    await stubShare(page, 'share');
+    await page.goto(`/recipe/${tooLong.id}`);
+    await button(page, 'Поделиться рецептом').click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet.getByText('Рецепт слишком длинный для ссылки. Сократи шаги или ингредиенты, чтобы поделиться им.', { exact: true })).toBeVisible();
+    expect(await handedOver(page)).toEqual({ shared: [], copied: [] });
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test('"Share recipe" opens the browser share menu at once with the title and the whole link', async ({ page }) => {
+    await stubShare(page, 'share');
+    await page.goto(`/recipe/${special.id}`);
+    // Only the recipe travels: no history, notes or favourite, even when the recipe has them.
+    await button(page, 'Добавить в любимое').click();
+    await button(page, 'Поделиться рецептом').click();
+    await expect.poll(async () => (await handedOver(page)).shared.length).toBe(1);
+    const [data] = (await handedOver(page)).shared;
+    expect(data.title).toBe(special.title);
+    expect(data.url).toMatch(/^http:\/\/127\.0\.0\.1:4173\/shared-recipe#1\.[A-Za-z0-9_-]+$/);
+    expect(payloadOf(data.url!)).toEqual({ t: special.title, c: 'b', m: 25, i: special.ingredients, s: special.steps });
+    // No screen in between, nothing copied, nothing to dismiss.
+    await expect(page).toHaveURL(new RegExp(`/recipe/${special.id}$`));
+    expect((await handedOver(page)).copied).toEqual([]);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test('closing the share menu is not an error', async ({ page }) => {
+    await stubShare(page, 'cancel');
+    await page.goto(`/recipe/${special.id}`);
+    await button(page, 'Поделиться рецептом').click();
+    await expect.poll(async () => (await handedOver(page)).shared.length).toBe(1);
+    await page.waitForTimeout(300);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.getByText('Ссылка скопирована', { exact: true })).toHaveCount(0);
+    expect((await handedOver(page)).copied).toEqual([]);
+  });
+
+  test('without a share menu the link is copied and that is confirmed', async ({ page }) => {
+    await stubShare(page, 'copy');
     const link = await linkOf(page, special.id);
-    await expect(page.getByText('История приготовления, заметки и избранное не передаются.', { exact: false })).toBeVisible();
-    // No two buttons do the same: the browser's share menu only where it exists, copying always.
-    const canShare = await page.evaluate(() => typeof navigator.share === 'function');
-    await expect(button(page, 'Поделиться ссылкой')).toHaveCount(canShare ? 1 : 0);
-    await expect(button(page, 'Скопировать ссылку')).toBeVisible();
-    test.skip(browserName !== 'chromium', 'Clipboard permissions are a Chromium feature in Playwright.');
-    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await button(page, 'Скопировать ссылку').click();
-    await expect(page.getByText('Ссылка скопирована', { exact: true })).toBeVisible();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(link);
+    expect(payloadOf(link).t).toBe(special.title);
+    await expect(page).toHaveURL(new RegExp(`/recipe/${special.id}$`));
+  });
+
+  test('when copying is refused the link is shown to select by hand', async ({ page }) => {
+    await stubShare(page, 'copyFails');
+    await page.goto(`/recipe/${special.id}`);
+    await button(page, 'Поделиться рецептом').click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet.getByRole('heading', { name: 'Ссылка на рецепт', exact: true })).toBeVisible();
+    await expect(sheet.getByText('Скопировать ссылку не получилось. Выдели её и скопируй вручную.', { exact: true })).toBeVisible();
+    const link = await sheet.getByTestId('recipe-link').innerText();
+    expect(payloadOf(link).t).toBe(special.title);
+    expect(await sheet.getByTestId('recipe-link').evaluate(element => getComputedStyle(element).userSelect)).not.toBe('none');
+    await button(page, 'Готово').click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test('quick repeated taps open the share menu once', async ({ page }) => {
+    await stubShare(page, 'slowShare');
+    await page.goto(`/recipe/${special.id}`);
+    const share = button(page, 'Поделиться рецептом');
+    await share.click();
+    await share.click({ force: true });
+    await share.click({ force: true });
+    await page.waitForTimeout(1800);
+    expect((await handedOver(page)).shared).toHaveLength(1);
+    await share.click();
+    await expect.poll(async () => (await handedOver(page)).shared.length).toBe(2);
   });
 
   test('the link opens directly in a browser that has no data and never saw the introduction', async ({ page, browser }) => {
+    await stubShare(page, 'copy');
     const link = await linkOf(page, special.id);
     // Nothing seeded: no recipes, and the introduction was never completed.
     const stranger = await browser.newContext({ storageState: { cookies: [], origins: [] } });
@@ -69,6 +166,7 @@ test.describe('text that looks like markup', () => {
     ingredients: ['<b>Соль</b> — 1 г'], steps: ['<script>window.injected=2</script>Варить.'] };
   test.use({ seedRecipes: [[...recipes, markup], { scope: 'test' }] });
   test('is shown as text, runs nothing, and the page asks no other address', async ({ page, browser }) => {
+    await stubShare(page, 'copy');
     const link = await linkOf(page, markup.id);
     const stranger = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const view = await stranger.newPage();
@@ -87,6 +185,7 @@ test.describe('text that looks like markup', () => {
 });
 
 test('a link is previewed, cancelling changes nothing, adding saves it once and it survives a restart', async ({ page }) => {
+  await stubShare(page, 'copy');
   await page.goto('/recipes');
   const link = await linkOf(page, recipes[0].id);
   // A second book receives the link: a fresh browser with only the soup.
@@ -132,6 +231,7 @@ test('a link is previewed, cancelling changes nothing, adding saves it once and 
 });
 
 test('other text, damaged or cut links and a newer version are explained without any change', async ({ page }) => {
+  await stubShare(page, 'copy');
   await page.goto('/recipes');
   const link = await linkOf(page, recipes[1].id);
   await openImport(page);
@@ -160,9 +260,9 @@ const longRecipe = (n: number, steps: number) => ({
 const long = [longRecipe(1, 6), longRecipe(2, 9)];
 for (const variant of [
   { name: 'Russian, light, standard text', settings: { theme: 'light', language: 'ru' }, large: false,
-    label: 'Ссылка на рецепт', show: 'Показать рецепт', duplicate: 'Такой рецепт уже есть в книге.', invalid: 'Ссылка повреждена или обрезана. Попроси отправить её ещё раз.' },
+    share: 'Поделиться рецептом', label: 'Ссылка на рецепт', show: 'Показать рецепт', duplicate: 'Такой рецепт уже есть в книге.', invalid: 'Ссылка повреждена или обрезана. Попроси отправить её ещё раз.' },
   { name: 'English, dark, large text', settings: { theme: 'dark', language: 'en' }, large: true,
-    label: 'Recipe link', show: 'Show recipe', duplicate: 'This recipe is already in your book.', invalid: 'The link is damaged or cut off. Ask for it to be sent again.' },
+    share: 'Share recipe', label: 'Recipe link', show: 'Show recipe', duplicate: 'This recipe is already in your book.', invalid: 'The link is damaged or cut off. Ask for it to be sent again.' },
 ] as const) {
   test.describe(`long links at 320 px: ${variant.name}`, () => {
     test.use({
@@ -171,10 +271,14 @@ for (const variant of [
       seedSettings: { ...variant.settings, shoppingCompletedBehavior: 'moveDown' },
     });
     test('the field stays short, the button and every result come into view', async ({ page }) => {
+      await stubShare(page, 'copy');
       const links: string[] = [];
       for (const recipe of long) {
-        await page.goto(`/share-recipe?id=${recipe.id}`);
-        const link = await page.getByTestId('recipe-link').innerText();
+        await page.goto(`/recipe/${recipe.id}`);
+        await button(page, variant.share).click();
+        // The stub starts a new record on every page load.
+        await expect.poll(async () => (await handedOver(page)).copied.length).toBe(1);
+        const link = (await handedOver(page)).copied.at(-1)!;
         expect(link.length).toBeGreaterThanOrEqual(2000);
         expect(link.length).toBeLessThanOrEqual(4000);
         links.push(link);
@@ -213,10 +317,15 @@ for (const variant of [
 
 test('a long link pasted from the clipboard arrives whole', async ({ page, context, browserName }) => {
   test.skip(browserName !== 'chromium', 'Clipboard permissions are a Chromium feature in Playwright.');
-  await page.goto(`/share-recipe?id=${recipes[0].id}`);
-  const link = await page.getByTestId('recipe-link').innerText();
-  const text = `${recipes[0].title}\n${link}`;
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  // The real clipboard here: no share menu, so "Share recipe" copies the link into it.
+  await page.addInitScript(() => Object.defineProperty(Navigator.prototype, 'share', { configurable: true, get: () => undefined }));
+  await page.goto(`/recipe/${recipes[0].id}`);
+  await button(page, 'Поделиться рецептом').click();
+  await expect(page.getByText('Ссылка скопирована', { exact: true })).toBeVisible();
+  const link = await page.evaluate(() => navigator.clipboard.readText());
+  expect(link).toMatch(/\/shared-recipe#1\./);
+  const text = `${recipes[0].title}\n${link}`;
   await page.goto('/import-link');
   await page.evaluate(value => navigator.clipboard.writeText(value), text);
   const field = page.getByRole('textbox', { name: 'Ссылка на рецепт', exact: true });
@@ -230,11 +339,15 @@ test('a long link pasted from the clipboard arrives whole', async ({ page, conte
 test.describe('English, dark theme', () => {
   test.use({ seedSettings: { theme: 'dark', language: 'en', shoppingCompletedBehavior: 'moveDown' } });
   test('sharing and adding by link are translated', async ({ page }) => {
+    await stubShare(page, 'copyFails');
     await page.goto(`/recipe/${recipes[0].id}`);
     await button(page, 'Share recipe').click();
-    await expect(button(page, 'Copy link')).toBeVisible();
+    await expect(page.getByRole('dialog').getByRole('heading', { name: 'Recipe link', exact: true })).toBeVisible();
+    await expect(page.getByText("Couldn't copy the link. Select it and copy it by hand.", { exact: true })).toBeVisible();
     await expect(page.getByText('Cooking history, notes and favourites are not sent.', { exact: false })).toBeVisible();
+    await button(page, 'Done').click();
     await page.goto('/recipes');
+    await button(page, 'Add recipe').click();
     await button(page, 'Add from link').click();
     await expect(page.getByRole('textbox', { name: 'Recipe link', exact: true })).toBeVisible();
     await button(page, 'Show recipe').click();

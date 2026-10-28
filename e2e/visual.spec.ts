@@ -1,4 +1,4 @@
-import { test, expect, openHome, recipes, revealShoppingActions, rows, settingRow, shopping, visualReady } from './fixtures';
+import { test, expect, openHome, recipes, revealShoppingActions, rows, settingRow, shopping, visualReady, openNewRecipeForm } from './fixtures';
 
 for (const theme of ['light', 'dark'] as const) {
   test.describe(theme, () => {
@@ -18,7 +18,7 @@ for (const theme of ['light', 'dark'] as const) {
       await visualReady(page);
       await expect(page).toHaveScreenshot('shopping.png');
       await page.getByRole('tab', { name: 'Рецепты', exact: true }).click();
-      await page.getByRole('button', { name: 'Добавить рецепт', exact: true }).click();
+      await openNewRecipeForm(page);
       await expect(page.getByPlaceholder('Название рецепта')).toBeVisible();
       await visualReady(page);
       await expect(page).toHaveScreenshot('form.png');

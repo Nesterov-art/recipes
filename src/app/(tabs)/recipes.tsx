@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import Animated, { FadeOut } from 'react-native-reanimated';
 import { FlatList, Platform, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BottomSheet, SheetAction } from '@/components/bottom-sheet';
 import { EmptyStateArt } from '@/components/choice-art';
 import { FILTERS } from '@/constants/recipes';
 import { MONOREC_THEMES } from '@/constants/theme';
@@ -41,6 +43,10 @@ function RecipesContent() {
   const stackedTime = textScale >= STACKED_FONT_SCALE;
   const cookingCount = Object.values(recipeMeta).reduce((sum, meta) => sum + meta.cookings.length, 0);
 
+  // "+" offers the ways to add a recipe; each opens its existing screen.
+  const [adding, setAdding] = useState(false);
+  const addVia = (path: '/form' | '/import-link') => { setAdding(false); router.push(path); };
+
   function cycleSort() {
     setSort(sort === 'recent' ? 'asc' : sort === 'asc' ? 'desc' : 'recent');
   }
@@ -58,16 +64,7 @@ function RecipesContent() {
         </View>
         <View style={styles.homeActions}>
           <Pressable
-            onPress={() => router.push('/import-link')}
-            hitSlop={2}
-            style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel={t('addByLink')}
-          >
-            <Ionicons name="link-outline" size={24} color={colors.text} />
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/form')}
+            onPress={() => setAdding(true)}
             hitSlop={2}
             style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
             accessibilityRole="button"
@@ -276,6 +273,10 @@ function RecipesContent() {
           );
         }}
       />
+      {adding && <BottomSheet title={t('addRecipe')} onClose={() => setAdding(false)}>
+        <SheetAction icon="pencil-outline" label={t('createManually')} hint={t('createManuallyHint')} onPress={() => addVia('/form')} />
+        <SheetAction icon="link-outline" label={t('addByLink')} hint={t('addByLinkHint')} onPress={() => addVia('/import-link')} />
+      </BottomSheet>}
     </View>
   );
 }

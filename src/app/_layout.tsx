@@ -50,10 +50,6 @@ function RootNavigator() {
       <Stack.Screen name="backup" />
       <Stack.Screen name="shared-recipe" />
       <Stack.Screen
-        name="share-recipe"
-        options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
-      />
-      <Stack.Screen
         name="import-link"
         options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
       />

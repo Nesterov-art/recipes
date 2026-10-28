@@ -50,6 +50,13 @@ export async function openHome(page: Page) {
   await expect(page.getByRole('button', { name: 'Добавить рецепт', exact: true })).toBeVisible();
 }
 
+// "+" in the recipe book opens the add menu; "Create manually" opens the empty recipe form.
+export async function openNewRecipeForm(page: Page) {
+  await page.getByRole('button', { name: 'Добавить рецепт', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Создать вручную', exact: true }).click();
+  await expect(page).toHaveURL(/\/form$/);
+}
+
 // Recipe and profile backups live on their own screen: Settings → Backups.
 export async function openBackups(page: Page) {
   await openHome(page);

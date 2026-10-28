@@ -1,4 +1,4 @@
-import { test, expect, openHome } from './fixtures';
+import { test, expect, openHome, openNewRecipeForm } from './fixtures';
 
 const longRecipe = {
   id: 'long-recipe', title: 'Длинный рецепт', category: null, time: 30,
@@ -37,7 +37,7 @@ test.describe('long content and fixed actions', () => {
 
   test('form save remains reachable when web keyboard reduces the viewport', async ({ page }) => {
     await openHome(page);
-    await page.getByRole('button', { name: 'Добавить рецепт', exact: true }).click();
+    await openNewRecipeForm(page);
     await page.getByPlaceholder('Название рецепта', { exact: true }).fill('Проверка клавиатуры');
     const steps = page.getByPlaceholder('Шаги приготовления', { exact: true });
     await steps.fill(Array.from({ length: 18 }, (_, i) => `Длинный шаг ${i + 1}`).join('\n'));

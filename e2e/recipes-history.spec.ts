@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import type { Page } from '@playwright/test';
-import { test, expect, openBackups, openHome, recipes } from './fixtures';
+import { test, expect, openBackups, openHome, recipes, openNewRecipeForm } from './fixtures';
 
 const [omelet, soup] = recipes;
 const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
@@ -93,7 +93,7 @@ test('editing keeps the id, the untouched fields, the favourite and the history'
 
 test('closing a changed form asks first; declining keeps the input, confirming saves nothing', async ({ page }) => {
   await openHome(page);
-  await button(page, 'Добавить рецепт').click();
+  await openNewRecipeForm(page);
   await page.getByPlaceholder('Название рецепта', { exact: true }).fill('Черновик');
   const dialogs: string[] = [];
   page.once('dialog', dialog => { dialogs.push(dialog.message()); void dialog.dismiss(); });

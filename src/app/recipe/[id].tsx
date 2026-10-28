@@ -8,6 +8,7 @@ import { MONOREC_THEMES } from '@/constants/theme';
 import { useRecipes } from '@/context/recipes-context';
 import { PaletteProvider, useSettings } from '@/context/settings-context';
 import { useFittedTitle } from '@/hooks/use-fitted-title';
+import { useShareRecipe } from '@/hooks/use-share-recipe';
 import { useStyles } from '@/styles';
 import { confirmDelete } from '@/utils/confirm-delete';
 import { cookingSteps } from '@/utils/cooking';
@@ -48,6 +49,7 @@ function RecipeContent() {
   const deleting = useRef(false);
   const recording = useRef(false);
   const titleStyle = useFittedTitle(selected?.title ?? '', styles.recipeTitle.fontSize);
+  const { share, sheet: shareSheet } = useShareRecipe();
 
   if (!selected) return <View style={styles.screen} />;
 
@@ -147,7 +149,7 @@ function RecipeContent() {
                 <Ionicons name={meta.favorite ? 'heart' : 'heart-outline'} size={22} color={colors.text} />
               </Pressable>
               <Pressable
-                onPress={() => router.push({ pathname: '/share-recipe', params: { id: selected.id } })}
+                onPress={() => void share(selected)}
                 hitSlop={8}
                 style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
                 accessibilityRole="button"
@@ -299,6 +301,7 @@ function RecipeContent() {
           </Pressable>
         </View>
       </ScrollView>
+      {shareSheet}
     </View>
   );
 }

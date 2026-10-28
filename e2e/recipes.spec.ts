@@ -1,4 +1,4 @@
-import { test, expect, openHome, chooseSetting, settingRow } from './fixtures';
+import { test, expect, openHome, chooseSetting, settingRow, openNewRecipeForm } from './fixtures';
 
 test('search matches title, ingredients and all terms; clearing restores results', async ({ page }) => {
   await openHome(page);
@@ -28,7 +28,7 @@ test.describe('empty book', () => {
     await expect(page.getByText(/Пока нет рецептов/)).toBeVisible();
     await page.reload();
     await expect(page.getByText(/Пока нет рецептов/)).toBeVisible();
-    await page.getByRole('button', { name: 'Добавить рецепт', exact: true }).click();
+    await openNewRecipeForm(page);
     await page.getByPlaceholder('Название рецепта', { exact: true }).fill('Тестовый салат');
     await page.getByPlaceholder('Например, 15', { exact: true }).fill('5');
     await page.getByPlaceholder('Ингредиент — количество', { exact: true }).fill('Огурец — 1 шт\nСыр — 50 г');

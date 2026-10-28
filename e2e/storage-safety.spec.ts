@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import { readFile } from 'node:fs/promises';
-import { test, expect, recipes, openHome, chooseSetting, settingRow } from './fixtures';
+import { test, expect, recipes, openHome, chooseSetting, settingRow, openNewRecipeForm } from './fixtures';
 
 const bookKey = 'recipe-book-v1';
 const rawBook = JSON.stringify({ recipes, recipeMeta: {} });
@@ -129,7 +129,7 @@ test('failed recipe creation keeps the form draft and does not claim success', a
     };
   });
   await openHome(page);
-  await page.getByRole('button', { name: 'Добавить рецепт', exact: true }).click();
+  await openNewRecipeForm(page);
   await page.getByPlaceholder('Название рецепта', { exact: true }).fill('Рецепт с отказом');
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('Не удалось сохранить изменения');
@@ -204,7 +204,7 @@ test('recovery download preserves exact damaged payload without resetting storag
 test('a stale tab cannot overwrite a recipe saved in another tab', async ({ page, context }) => {
   await openHome(page);
   const stale = await context.newPage(); await openHome(stale);
-  await page.getByRole('button', { name: 'Добавить рецепт', exact: true }).click();
+  await openNewRecipeForm(page);
   await page.getByPlaceholder('Название рецепта', { exact: true }).fill('Рецепт из другой вкладки');
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Открыть рецепт Рецепт из другой вкладки', exact: true })).toBeVisible();
