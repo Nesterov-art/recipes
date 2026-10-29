@@ -6,17 +6,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SharedRecipeView } from '@/components/shared-recipe-view';
 import { MONOREC_THEMES } from '@/constants/theme';
+import { useImportDraft } from '@/context/import-draft-context';
 import { useRecipes } from '@/context/recipes-context';
 import { PaletteProvider, useSettings } from '@/context/settings-context';
 import { useToast } from '@/context/toast-context';
 import { useStyles } from '@/styles';
 import { fetchRecipePage } from '@/utils/fetch-recipe-page';
+import { findDuplicate, recipeFromDraft } from '@/utils/import-draft';
 import { linkTarget, loadMessage, type Message, parseMessage, problemMessage } from '@/utils/import-link-target';
 import { mergeRecipeBackup, type RecipeBackup } from '@/utils/recipe-backup';
+import { createWithFreshId } from '@/utils/recipe-create';
 import { parseRecipePage, type RecipeImportResult } from '@/utils/recipe-import';
 import { LINK_ERRORS, SHARE_ORIGIN, type SharedRecipe } from '@/utils/recipe-link';
 
-// A recipe found on a cooking site: shown, not saved (saving comes with the next stage).
+// A recipe found on a cooking site: added as is when it is whole, or checked in the form first.
 type SiteRecipe = Extract<RecipeImportResult, { status: 'complete' | 'partial' }> & { host: string };
 // Monorec's own host names: a Monorec page that is not a recipe link is not loaded as a site.
 const OWN_HOSTS = [new URL(SHARE_ORIGIN).hostname, ...(Platform.OS === 'web' && typeof window !== 'undefined' ? [window.location.hostname] : [])];
@@ -32,7 +35,8 @@ function ImportLinkContent() {
   const { colors, t } = useSettings();
   const { showToast } = useToast();
   const styles = useStyles();
-  const { recipes, recipeMeta, importRecipes } = useRecipes();
+  const { recipes, recipeMeta, importRecipes, createRecipe } = useRecipes();
+  const drafts = useImportDraft();
   const [text, setText] = useState('');
   const [shared, setShared] = useState<SharedRecipe | null>(null);
   const [error, setError] = useState('');
@@ -62,10 +66,41 @@ function ImportLinkContent() {
     loads.current++;
     setLoading(false);
   }
-  useEffect(() => () => { load.current?.controller.abort(); load.current = null; loads.current++; }, []);
-  // A site recipe is a duplicate only when every field is known and matches one in the book exactly.
-  const siteDuplicate = site?.status === 'complete' && site.draft.time !== null
-    && mergeRecipeBackup(recipes, recipeMeta, backup({ ...site.draft, time: site.draft.time }, 'preview')).duplicates > 0;
+  // The draft handed to the form, forgotten when this screen closes.
+  const offered = useRef<string | null>(null);
+  useEffect(() => () => {
+    load.current?.controller.abort(); load.current = null; loads.current++;
+    if (offered.current) drafts.clear(offered.current);
+  }, [drafts]);
+  // A site recipe that is whole can be added as is; it is a duplicate only when every field
+  // matches one in the book exactly (the existing comparison).
+  const whole = site?.status === 'complete' ? recipeFromDraft(site.draft, 'preview') : null;
+  const siteDuplicate = whole ? findDuplicate(recipes, { title: whole.title, category: whole.category, time: whole.time, ingredients: whole.ingredients, steps: whole.steps }) : null;
+  // Adding: created under a free id only, refused if an exact copy is in the book (checked inside
+  // the write), and no second write while one is running.
+  const [adding, setAdding] = useState<'idle' | 'saving' | 'failed' | 'idConflict'>('idle');
+  const addingNow = useRef(false);
+  async function addSite() {
+    if (!site || addingNow.current) return;
+    const recipe = recipeFromDraft(site.draft, 'new');
+    if (!recipe) return;
+    const { id: _id, ...fields } = recipe;
+    if (findDuplicate(recipes, fields)) return;
+    addingNow.current = true;
+    setAdding('saving');
+    const { result } = await createWithFreshId(createRecipe, fields, id => router.replace({ pathname: '/recipe/[id]', params: { id } }), { refuseDuplicate: true });
+    addingNow.current = false;
+    // A failed write stays with the storage guard (its Retry finishes this same recipe); a copy
+    // that appeared meanwhile shows as the duplicate notice once the book updates.
+    if (result === 'notSaved') setAdding('failed');
+    else if (result === 'idTaken') setAdding('idConflict');
+    else if (result === 'duplicate') setAdding('idle');
+  }
+  function editSite() {
+    if (!site || addingNow.current) return;
+    offered.current = drafts.offer({ draft: site.draft, host: site.host });
+    router.push({ pathname: '/form', params: { draft: offered.current } });
+  }
 
   async function findOnSite(url: string) {
     const id = ++loads.current;
@@ -79,7 +114,10 @@ function ImportLinkContent() {
     if (loaded.status === 'cancelled') { setNotice(say(loadMessage(loaded, Platform.OS === 'web'))); return; }
     if (loaded.status !== 'success') { setError(say(loadMessage(loaded, Platform.OS === 'web'))); return; }
     const parsed = parseRecipePage(loaded.html);
-    if (parsed.status === 'complete' || parsed.status === 'partial') setSite({ ...parsed, host: new URL(loaded.url).hostname });
+    if (parsed.status === 'complete' || parsed.status === 'partial') {
+      setAdding('idle');
+      setSite({ ...parsed, host: new URL(loaded.url).hostname });
+    }
     else setError(say(parseMessage(parsed)));
   }
 
@@ -159,8 +197,8 @@ function ImportLinkContent() {
           )}
 
           {site && <View key={shown} testID="recipe-site-preview" style={{ marginTop: 28 }} onLayout={event => reveal(event.nativeEvent.layout.y)}>
-            {/* What can be done with it comes first: a preview only, and what is missing or doubtful. */}
-            <Text style={[styles.settingsHint, { marginTop: 0 }]}>{siteDuplicate ? t('recipeLinkDuplicate') : t('sitePreviewHint')}</Text>
+            {/* What happens to it comes first: added as new, checked first, or already in the book. */}
+            <Text style={[styles.settingsHint, { marginTop: 0 }]}>{siteDuplicate ? t('recipeLinkDuplicate') : whole ? t('siteCompleteHint') : t('sitePartialEditHint')}</Text>
             {site.status === 'partial' && <View testID="recipe-site-problems" style={{ marginTop: 8 }}>
               <Text style={[styles.settingsHint, { marginTop: 0, color: colors.text }]}>{t('sitePartialHint')}</Text>
               {site.problems.map((problem, index) => (
@@ -169,6 +207,22 @@ function ImportLinkContent() {
             </View>}
             <Text style={[styles.settingsHint, { marginTop: 8, marginBottom: 12 }]}>{t('siteSource', { host: site.host })}</Text>
             <SharedRecipeView recipe={site.draft} />
+            {(adding === 'failed' || adding === 'idConflict') && <Text accessibilityRole="alert" style={[styles.settingsHint, { color: colors.danger }]}>{t(adding === 'failed' ? 'siteSaveFailed' : 'recipeIdConflict')}</Text>}
+            <View style={styles.choiceActions}>
+              {siteDuplicate ? (
+                <Pressable onPress={() => router.replace({ pathname: '/recipe/[id]', params: { id: siteDuplicate } })} style={({ pressed }) => [styles.choicePrimary, pressed && styles.pressed]} accessibilityRole="button">
+                  <Text style={styles.choicePrimaryText}>{t('openRecipeAction')}</Text>
+                </Pressable>
+              ) : whole && (
+                <Pressable onPress={() => void addSite()} disabled={adding === 'saving'} style={({ pressed }) => [styles.choicePrimary, (pressed || adding === 'saving') && styles.pressed]}
+                  accessibilityRole="button" accessibilityState={{ disabled: adding === 'saving', busy: adding === 'saving' }}>
+                  <Text style={styles.choicePrimaryText}>{adding === 'saving' ? t('siteSaving') : t('backupConfirm')}</Text>
+                </Pressable>
+              )}
+              <Pressable onPress={editSite} disabled={adding === 'saving'} style={({ pressed }) => [styles.choiceSecondary, pressed && { backgroundColor: colors.cardPressed }]} accessibilityRole="button">
+                <Text style={styles.choiceSecondaryText}>{t('edit')}</Text>
+              </Pressable>
+            </View>
           </View>}
 
           {shared && <View key={shown} testID="recipe-link-preview" style={{ marginTop: 28 }} onLayout={event => reveal(event.nativeEvent.layout.y)}>

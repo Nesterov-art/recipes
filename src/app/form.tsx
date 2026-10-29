@@ -1,16 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, usePreventRemove } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CATEGORIES, type Recipe } from '@/constants/recipes';
 import { MONOREC_THEMES } from '@/constants/theme';
+import { type ImportedDraft, useImportDraft } from '@/context/import-draft-context';
 import { useRecipes } from '@/context/recipes-context';
 import { PaletteProvider, useSettings } from '@/context/settings-context';
+import { useToast } from '@/context/toast-context';
 import { useFittedTitle } from '@/hooks/use-fitted-title';
 import { useStyles } from '@/styles';
 import { confirmDelete } from '@/utils/confirm-delete';
+import { draftFields, findDuplicate, formTime } from '@/utils/import-draft';
+import { createWithFreshId } from '@/utils/recipe-create';
 import { keyboardDismissOnDrag } from '@/utils/keyboard-dismiss';
 import { categoryLabel, toLines } from '@/utils/recipes';
 
@@ -18,20 +22,43 @@ function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+// /form: a new recipe; /form?id=…: editing it; /form?draft=…: a new recipe filled from a
+// cooking site's page, where draft is the key of the in-memory draft (not the recipe itself).
 export default function FormScreen() {
-  return <PaletteProvider palette={MONOREC_THEMES}><FormContent /></PaletteProvider>;
+  const params = useLocalSearchParams<{ id?: string | string[]; draft?: string | string[] }>();
+  const drafts = useImportDraft();
+  const key = first(params.id) ? undefined : first(params.draft);
+  const [imported] = useState(() => (key ? drafts.get(key) : null));
+  return (
+    <PaletteProvider palette={MONOREC_THEMES}>
+      {key && !imported ? <DraftLost /> : <FormContent imported={key && imported ? { ...imported, key } : null} />}
+    </PaletteProvider>
+  );
 }
 
-function FormContent() {
+// The draft is gone (the page was reloaded or the app restarted): back to the import screen,
+// never an empty recipe.
+function DraftLost() {
+  const { t } = useSettings();
+  const { showToast } = useToast();
+  useEffect(() => {
+    showToast(t('importDraftLost'));
+    router.replace('/import-link');
+  }, [showToast, t]);
+  return null;
+}
+
+function FormContent({ imported }: { imported: (ImportedDraft & { key: string }) | null }) {
   const insets = useSafeAreaInsets();
   const bottomInset = Platform.OS === 'web' ? 0 : insets.bottom;
   const { colors, t } = useSettings();
   const styles = useStyles();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
-  const { recipes, addRecipe, updateRecipe } = useRecipes();
+  const { recipes, createRecipe, updateRecipe } = useRecipes();
+  const { clear: clearDraft } = useImportDraft();
   const initial = recipes.find((recipe) => recipe.id === first(params.id));
 
-  const [start] = useState(() => ({
+  const [start] = useState(() => (imported ? draftFields(imported.draft) : {
     title: initial?.title ?? '',
     time: initial ? String(initial.time) : '',
     ingredients: initial?.ingredients.join('\n') ?? '',
@@ -43,11 +70,17 @@ function FormContent() {
   const [ingredients, setIngredients] = useState(start.ingredients);
   const [steps, setSteps] = useState(start.steps);
   const [category, setCategory] = useState<string | null>(start.category);
-  const [draftId] = useState(() => initial?.id ?? `${Date.now()}-${Math.random()}`);
   const saving = useRef(false);
+  // No free id could be found for a new recipe (three taken in a row): nothing was written.
+  const [idConflict, setIdConflict] = useState(false);
   const heading = initial ? t('editing') : t('newRecipe');
   const titleStyle = useFittedTitle(heading, styles.recipeTitle.fontSize);
-  const [errors, setErrors] = useState({ title: false, time: false });
+  const [errors, setErrors] = useState<{ title: boolean; time: false | 'invalid' | 'required' }>({ title: false, time: false });
+  // An exact copy already in the book (recipes from a site only), for the values it was found with.
+  const [duplicate, setDuplicate] = useState<{ id: string | null; values: string } | null>(null);
+  const values = JSON.stringify([title, time, ingredients, steps, category]);
+  const shownDuplicate = duplicate?.values === values ? duplicate : null;
+  const timeMessage = errors.time === 'required' ? t('importTimeRequired') : t('invalidTimeMessage');
 
   const dirty = title !== start.title || time !== start.time || ingredients !== start.ingredients
     || steps !== start.steps || category !== start.category;
@@ -63,30 +96,53 @@ function FormContent() {
   async function handleSave() {
     if (saving.current) return;
     const normalizedTitle = title.trim();
-    const normalizedTime = Number(time);
-    const nextErrors = { title: !normalizedTitle, time: !Number.isFinite(normalizedTime) || normalizedTime < 0 };
+    // A recipe from a site whose time was unknown needs one from the person (0 included); a
+    // manual recipe keeps its rule that an empty time is 0.
+    const timed = formTime(time, { required: imported !== null });
+    const nextErrors = { title: !normalizedTitle, time: timed.ok ? false as const : timed.error };
     setErrors(nextErrors);
-    if (nextErrors.title || nextErrors.time) {
+    if (nextErrors.title || nextErrors.time || !timed.ok) {
       if (Platform.OS !== 'web') AccessibilityInfo.announceForAccessibility([
         ...(nextErrors.title ? [t('titleRequiredMessage')] : []),
-        ...(nextErrors.time ? [t('invalidTimeMessage')] : []),
+        ...(nextErrors.time ? [nextErrors.time === 'required' ? t('importTimeRequired') : t('invalidTimeMessage')] : []),
       ].join('. '));
       return;
     }
 
-    const recipe: Recipe = {
-      id: draftId,
+    const fields: Omit<Recipe, 'id'> = {
       title: normalizedTitle,
       category,
-      time: normalizedTime,
+      time: timed.minutes,
       ingredients: toLines(ingredients),
       steps: toLines(steps),
     };
+    const nameDuplicate = (existing: string | null) => {
+      setDuplicate({ id: existing, values });
+      if (Platform.OS !== 'web') AccessibilityInfo.announceForAccessibility(t('recipeLinkDuplicate'));
+    };
+    // A recipe from a site is not added twice: an exact copy already in the book is named instead.
+    if (imported) {
+      const existing = findDuplicate(recipes, fields);
+      if (existing) { nameDuplicate(existing); return; }
+    }
     saving.current = true;
+    setIdConflict(false);
     // Only a saved recipe lifts the guard; a failed write keeps the form open and
-    // guarded, and the existing Retry finishes it.
-    const done = () => { allowLeave(); router.back(); };
-    await (initial ? updateRecipe(recipe, done) : addRecipe(recipe, done));
+    // guarded, and the existing Retry finishes it. A recipe from a site then opens itself.
+    const done = (id: string) => {
+      allowLeave();
+      if (!imported) { router.back(); return; }
+      clearDraft(imported.key);
+      router.replace({ pathname: '/recipe/[id]', params: { id } });
+    };
+    if (initial) {
+      await updateRecipe({ id: initial.id, ...fields }, () => done(initial.id));
+    } else {
+      // Created only under an id no recipe has; the copy check is repeated inside the write.
+      const { result } = await createWithFreshId(createRecipe, fields, done, { refuseDuplicate: imported !== null });
+      if (result === 'duplicate') nameDuplicate(findDuplicate(recipes, fields));
+      if (result === 'idTaken') setIdConflict(true);
+    }
     saving.current = false;
   }
 
@@ -130,6 +186,7 @@ function FormContent() {
           </View>
 
           <Text accessibilityRole="header" style={[styles.recipeTitle, titleStyle]}>{heading}</Text>
+          {imported && <Text style={[styles.settingsHint, { marginTop: 4 }]}>{t('importFormHint', { host: imported.host })}</Text>}
 
           {label(t('title'))}
           <TextInput
@@ -154,13 +211,13 @@ function FormContent() {
             value={time}
             onChangeText={value => { setTime(value); setErrors(current => ({ ...current, time: false })); }}
             accessibilityLabel={t('timeMinutes')}
-            accessibilityHint={errors.time ? t('invalidTimeMessage') : undefined}
+            accessibilityHint={errors.time ? timeMessage : undefined}
             placeholder={t('timePlaceholder')}
             placeholderTextColor={colors.muted}
             selectionColor={colors.text}
             keyboardType="number-pad"
           />
-          {errors.time && <Text nativeID="recipe-time-error" accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.fieldError}>{t('invalidTimeMessage')}</Text>}
+          {errors.time && <Text nativeID="recipe-time-error" accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.fieldError}>{timeMessage}</Text>}
 
           {label(t('category'))}
           <View style={styles.chipsWrap}>
@@ -205,6 +262,21 @@ function FormContent() {
             multiline
             scrollEnabled={false}
           />
+
+          {shownDuplicate && <View testID="recipe-form-duplicate" style={{ marginTop: 24 }}>
+            <Text accessibilityRole="alert" style={[styles.settingsHint, { marginTop: 0, color: colors.text }]}>{t('recipeLinkDuplicate')}</Text>
+            {shownDuplicate.id && <View style={styles.choiceActions}>
+              <Pressable
+                onPress={() => { allowLeave(); router.replace({ pathname: '/recipe/[id]', params: { id: shownDuplicate.id! } }); }}
+                style={({ pressed }) => [styles.choiceSecondary, pressed && { backgroundColor: colors.cardPressed }]}
+                accessibilityRole="button"
+              >
+                <Text style={styles.choiceSecondaryText}>{t('openRecipeAction')}</Text>
+              </Pressable>
+            </View>}
+          </View>}
+
+          {idConflict && <Text accessibilityRole="alert" style={[styles.fieldError, { marginTop: 24 }]}>{t('recipeIdConflict')}</Text>}
 
           <View style={[styles.choiceActions, { marginTop: 32 }]}>
             <Pressable

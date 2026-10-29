@@ -20,6 +20,7 @@ import {
 } from '@/constants/recipes';
 import { emptyRecipeMeta } from '@/utils/recipes';
 import { mergeRecipeBackup, type RecipeBackup } from '@/utils/recipe-backup';
+import { type CreateOptions, type CreateResult, createRecipeIn } from '@/utils/recipe-create';
 import { LEGACY_MIRRORS } from '@/utils/app-storage';
 import { bookConfig } from '@/utils/storage-models';
 import { useSafeStore } from '@/hooks/use-safe-store';
@@ -46,7 +47,9 @@ type RecipesContextValue = {
   toggleFavorite: (id: string) => void;
   recordCooking: (id: string, details?: { rating?: CookingRating; note?: string }, onSaved?: () => void) => Promise<boolean>;
   importRecipes: (backup: RecipeBackup, onSaved?: (result: ReturnType<typeof mergeRecipeBackup>) => void) => Promise<ReturnType<typeof mergeRecipeBackup>>;
-  addRecipe: (recipe: Recipe, onSaved?: () => void) => Promise<boolean>;
+  // Only creates: a taken id is refused, never replaced (see recipe-create.ts).
+  createRecipe: (recipe: Recipe, onSaved?: () => void, options?: CreateOptions) => Promise<CreateResult>;
+  // Only changes the recipe with this id.
   updateRecipe: (recipe: Recipe, onSaved?: () => void) => Promise<boolean>;
   deleteRecipe: (id: string, onSaved?: () => void) => Promise<boolean>;
   pickRandom: () => Recipe | null;
@@ -144,9 +147,7 @@ export function RecipesProvider({ children }: PropsWithChildren) {
         if (!saved || !result) throw new Error('Recipe import was not committed');
         return result;
       },
-      addRecipe: (recipe, onSaved) => store.update(current => ({
-        ...current, recipes: [recipe, ...current.recipes.filter(item => item.id !== recipe.id)],
-      }), () => { showToast(t('recipeCreated')); onSaved?.(); }),
+      createRecipe: (recipe, onSaved, options) => createRecipeIn(store, recipe, () => { showToast(t('recipeCreated')); onSaved?.(); }, options),
       updateRecipe: (updated, onSaved) => store.update(current => ({
         ...current, recipes: current.recipes.map(recipe => recipe.id === updated.id ? updated : recipe),
       }), () => { showToast(t('recipeUpdated')); onSaved?.(); }),

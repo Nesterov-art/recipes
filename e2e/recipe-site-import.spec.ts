@@ -1,49 +1,9 @@
 import { Buffer } from 'node:buffer';
-import type { Page, Route } from '@playwright/test';
-import { test, expect, openHome } from './fixtures';
+import type { Page } from '@playwright/test';
+import { test, expect } from './fixtures';
+import { button, find, openImport, preview, recipePage as page_, type Reply, SITE, sites, storage, syrniki } from './site-stubs';
 
-// Cooking sites are played by page.route: nothing in this file reaches a real site. Any
-// request that leaves the test server and is not a stubbed site is refused and recorded.
-const SITE = 'https://recipes.example';
-type Reply = { status?: number; body?: string | Buffer; type?: string | null; headers?: Record<string, string>; delay?: number; abort?: boolean; hold?: Promise<void> };
-async function sites(page: Page, reply: (url: string) => Reply) {
-  const requests: string[] = [], strays: string[] = [];
-  await page.route(url => url.hostname !== '127.0.0.1', route => { strays.push(route.request().url()); return route.abort('blockedbyclient'); });
-  await page.route('https://*.example/**', async (route: Route) => {
-    const url = route.request().url();
-    requests.push(url);
-    const r = reply(url);
-    if (r.hold) await r.hold;
-    if (r.delay) await new Promise(resolve => setTimeout(resolve, r.delay));
-    try {
-      if (r.abort) return await route.abort('failed');
-      await route.fulfill({
-        status: r.status ?? 200, body: r.body ?? '',
-        headers: { ...(r.type === null ? {} : { 'content-type': r.type ?? 'text/html; charset=utf-8' }), 'access-control-allow-origin': '*', ...r.headers },
-      });
-    } catch { /* The page already gave up on this request (cancel, timeout, left the screen). */ }
-  });
-  return { requests, strays };
-}
-const page_ = (...ld: unknown[]) => `<!doctype html><html><head><title>Рецепт</title>${ld.map(x => `<script type="application/ld+json">${typeof x === 'string' ? x : JSON.stringify(x)}</script>`).join('')}</head><body><h1>Рецепт</h1></body></html>`;
-const syrniki = (over: Record<string, unknown> = {}) => ({
-  '@context': 'https://schema.org', '@type': 'Recipe', name: 'Сырники из творога 😊', recipeCategory: 'Завтрак', totalTime: 'PT30M',
-  recipeIngredient: ['Творог 5% — 400 г', 'Яйцо — 1 шт.', 'Мука — 3 ст. л.'],
-  recipeInstructions: [{ '@type': 'HowToStep', text: 'Смешать творог, яйцо и муку.' }, { '@type': 'HowToStep', text: 'Обжарить по 3 минуты.' }], ...over,
-});
-const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
-const storage = (page: Page) => page.evaluate(() => Object.fromEntries(Object.keys(localStorage).sort().map(k => [k, localStorage.getItem(k)])));
-async function openImport(page: Page) {
-  await openHome(page);
-  await button(page, 'Добавить рецепт').click();
-  await button(page, 'Добавить по ссылке').click();
-  await expect(page).toHaveURL(/\/import-link$/);
-}
-async function find(page: Page, text: string, label = 'Ссылка на рецепт', action = 'Найти рецепт') {
-  await page.getByRole('textbox', { name: label, exact: true }).fill(text);
-  await button(page, action).click();
-}
-const preview = (page: Page) => page.getByTestId('recipe-site-preview');
+// Nothing in this file reaches a real site (see site-stubs.ts).
 const alert = (page: Page) => page.getByRole('alert');
 
 test('a Monorec link still opens as before and asks no website', async ({ page }) => {
@@ -58,7 +18,7 @@ test('a Monorec link still opens as before and asks no website', async ({ page }
   expect([...requests, ...strays]).toEqual([]);
 });
 
-test('a recipe page is loaded, read and previewed in full; nothing is saved and no save button is offered', async ({ page }) => {
+test('a recipe page is loaded, read and previewed in full; nothing is saved until asked', async ({ page }) => {
   const { requests, strays } = await sites(page, () => ({ body: page_({ '@type': 'Organization', name: 'Сайт' }, syrniki()) }));
   await openImport(page);
   const before = await storage(page);
@@ -69,9 +29,10 @@ test('a recipe page is loaded, read and previewed in full; nothing is saved and 
   await expect(view.getByText('3 ингредиента', { exact: true })).toBeVisible();
   for (const line of ['Творог 5% — 400 г', 'Яйцо — 1 шт.', 'Мука — 3 ст. л.', 'Смешать творог, яйцо и муку.', 'Обжарить по 3 минуты.']) await expect(view.getByText(line, { exact: true })).toBeVisible();
   await expect(view.getByText('Источник: recipes.example', { exact: true })).toBeVisible();
-  await expect(view.getByText(/Это предпросмотр/)).toBeVisible();
+  await expect(view.getByText('Рецепт добавится в книгу как новый. Можно добавить сразу или сначала изменить.', { exact: true })).toBeVisible();
   await expect(page.getByTestId('recipe-site-problems')).toHaveCount(0);
-  for (const name of ['Добавить в мою книгу', 'Изменить', 'Сохранить']) await expect(button(page, name)).toHaveCount(0);
+  // A whole recipe offers both ways in; neither is taken without a press.
+  for (const name of ['Добавить в мою книгу', 'Изменить']) await expect(button(page, name)).toBeVisible();
   expect(requests).toEqual([`${SITE}/recepty/syrniki`]);
   expect(strays).toEqual([]);
   expect(await storage(page)).toEqual(before);
@@ -94,6 +55,10 @@ test('a partial recipe shows everything found and names what is missing; unknown
   await expect(problems).toContainText('Время на странице не указано.');
   await expect(problems).toContainText('Категория не определена.');
   for (const line of ['Творог 5% — 400 г', 'Обжарить по 3 минуты.']) await expect(view.getByText(line, { exact: true })).toBeVisible();
+  // Not whole: only "Edit", with the reason; no way to add it unchecked.
+  await expect(view.getByText('Рецепт нужно проверить и дополнить перед сохранением — нажми «Изменить».', { exact: true })).toBeVisible();
+  await expect(button(page, 'Добавить в мою книгу')).toHaveCount(0);
+  await expect(button(page, 'Изменить')).toBeVisible();
   expect(await storage(page)).toEqual(before);
 });
 
@@ -270,7 +235,8 @@ test.describe('English, dark theme', () => {
     await expect(view.getByText('Source: recipes.example', { exact: true })).toBeVisible();
     await expect(page.getByTestId('recipe-site-problems')).toContainText('The page gives no time.');
     await expect(page.getByTestId('recipe-site-problems')).toContainText('No category found.');
-    await expect(view.getByText(/This is a preview/)).toBeVisible();
+    await expect(view.getByText('Check and complete the recipe before saving it — tap “Edit”.', { exact: true })).toBeVisible();
+    await expect(button(page, 'Add to my book')).toHaveCount(0);
     await find(page, `${SITE}/missing`, 'Recipe link', 'Find recipe');
     await expect(alert(page)).toHaveText('Page not found. Check the address.');
   });

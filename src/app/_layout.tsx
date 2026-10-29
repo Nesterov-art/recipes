@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Onboarding } from '@/components/onboarding';
 import { ProfileStorageGate } from '@/components/profile-storage-gate';
+import { ImportDraftProvider } from '@/context/import-draft-context';
 import { OnboardingProvider, useOnboarding } from '@/context/onboarding-context';
 import { AppToast } from '@/components/app-toast';
 import { RecipesProvider, useRecipes } from '@/context/recipes-context';
@@ -93,7 +94,9 @@ function AppContent() {
       <ToastProvider>
         <ShoppingProvider>
           <RecipesProvider>
-            <RootNavigator />
+            <ImportDraftProvider>
+              <RootNavigator />
+            </ImportDraftProvider>
             <AppToast />
           </RecipesProvider>
         </ShoppingProvider>
