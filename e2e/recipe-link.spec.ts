@@ -10,6 +10,9 @@ const tooLong = {
   id: 'e2e-too-long', title: 'Очень длинный пирог', category: null, time: 90, ingredients: ['Мука — 500 г'],
   steps: Array.from({ length: 20 }, (_, i) => `${i + 1}. Замесить тесто, дать подняться в тёплом месте, обмять и снова дать подняться.`),
 };
+// Saved by the form or brought by a backup, but outside what a link can carry.
+const fractional = { id: 'e2e-fractional', title: 'Яйцо всмятку', category: 'Завтрак', time: 1.5, ingredients: ['Яйцо — 1 шт'], steps: ['Варить.'] };
+const manyIngredients = { id: 'e2e-many', title: 'Big salad', category: null, time: 10, ingredients: Array.from({ length: 101 }, (_, i) => `Item ${i}`), steps: ['Mix.'] };
 const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
 const book = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('recipe-book-v1')!) as {
   recipes: { id: string; title: string; ingredients: string[]; steps: string[] }[]; recipeMeta: Record<string, unknown>;
@@ -67,7 +70,20 @@ async function show(page: Page, text: string) {
 }
 
 test.describe('sharing', () => {
-  test.use({ seedRecipes: [[...recipes, special, tooLong], { scope: 'test' }] });
+  test.use({ seedRecipes: [[...recipes, special, tooLong, fractional], { scope: 'test' }] });
+
+  test('a recipe outside what a link carries is explained to the sender; nothing is handed over', async ({ page }) => {
+    await stubShare(page, 'share');
+    await page.goto(`/recipe/${fractional.id}`);
+    await button(page, 'Поделиться рецептом').click();
+    await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('Этот рецепт нельзя отправить ссылкой: время должно быть целым числом минут от 0 до 10000.');
+    expect(await handedOver(page)).toEqual({ shared: [], copied: [] });
+    await button(page, 'Готово').click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    // The recipe itself is as it was.
+    expect((await book(page)).recipes.find(r => r.id === fractional.id)).toMatchObject({ ingredients: fractional.ingredients, steps: fractional.steps });
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('recipe-book-v1')!).recipes.find((r: { id: string }) => r.id === 'e2e-fractional').time)).toBe(1.5);
+  });
 
   test('a recipe too long for a link is explained and nothing is handed over', async ({ page }) => {
     await stubShare(page, 'share');
@@ -337,7 +353,14 @@ test('a long link pasted from the clipboard arrives whole', async ({ page, conte
 });
 
 test.describe('English, dark theme', () => {
-  test.use({ seedSettings: { theme: 'dark', language: 'en', shoppingCompletedBehavior: 'moveDown' } });
+  test.use({ seedSettings: { theme: 'dark', language: 'en', shoppingCompletedBehavior: 'moveDown' }, seedRecipes: [[...recipes, manyIngredients], { scope: 'test' }] });
+  test('a recipe outside what a link carries is explained in English', async ({ page }) => {
+    await stubShare(page, 'copy');
+    await page.goto(`/recipe/${manyIngredients.id}`);
+    await button(page, 'Share recipe').click();
+    await expect(page.getByRole('dialog').getByRole('alert')).toHaveText("This recipe can't be sent as a link: a link holds up to 100 ingredients, each a non-empty line of up to 500 characters.");
+    expect(await handedOver(page)).toEqual({ shared: [], copied: [] });
+  });
   test('sharing and adding by link are translated', async ({ page }) => {
     await stubShare(page, 'copyFails');
     await page.goto(`/recipe/${recipes[0].id}`);

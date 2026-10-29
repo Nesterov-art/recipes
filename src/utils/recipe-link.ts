@@ -11,19 +11,24 @@ export const SHARE_ORIGIN = 'https://neyroshi-recipes.expo.app';
 const VERSION = 1;
 // A messenger message holds about 4 096 characters; the link has to fit in one with its title.
 export const MAX_LINK_LENGTH = 4000;
-const LIMITS = { title: 200, items: 100, ingredient: 500, step: 2000, time: 10_000 };
+export const LINK_LIMITS = { title: 200, items: 100, ingredient: 500, step: 2000, time: 10_000 };
 const CODES = { b: CATEGORIES[0], l: CATEGORIES[1], d: CATEGORIES[2] } as const;
 type Code = keyof typeof CODES;
 type Payload = { t: string; c: Code | null; m: number; i: string[]; s: string[] };
 
+// The field of a recipe that does not fit the link format.
+export type LinkLimit = 'title' | 'time' | 'ingredients' | 'steps';
 export class RecipeLinkError extends Error {
-  // missing: no Monorec recipe link; invalid: damaged or cut; version: newer format; size: too long.
-  code: 'missing' | 'invalid' | 'version' | 'size';
-  constructor(code: RecipeLinkError['code']) { super(code); this.code = code; }
+  // missing: no Monorec recipe link; invalid: damaged or cut; version: newer format; size: too long;
+  // unsupported: a recipe the format cannot carry, refused when building (limit names the field).
+  code: 'missing' | 'invalid' | 'version' | 'size' | 'unsupported';
+  limit?: LinkLimit;
+  constructor(code: RecipeLinkError['code'], limit?: LinkLimit) { super(code); this.code = code; this.limit = limit; }
 }
-// The message for each failure, as a translation key.
+// The receiver's message for each failure, as a translation key. A link is never built from
+// an unsupported recipe, so a received one that breaks the limits is a damaged one.
 export const LINK_ERRORS = {
-  missing: 'recipeLinkMissing', invalid: 'recipeLinkInvalid', version: 'recipeLinkVersion', size: 'recipeLinkSize',
+  missing: 'recipeLinkMissing', invalid: 'recipeLinkInvalid', version: 'recipeLinkVersion', size: 'recipeLinkSize', unsupported: 'recipeLinkInvalid',
 } as const satisfies Record<RecipeLinkError['code'], string>;
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
@@ -77,18 +82,31 @@ function fromBase64Url(text: string) {
   return bytes;
 }
 
+const text = (value: unknown, max: number): value is string =>
+  typeof value === 'string' && value.length <= max && value.trim().length > 0;
+const list = (value: unknown, max: number) =>
+  Array.isArray(value) && value.length <= LINK_LIMITS.items && value.every(item => text(item, max));
+// The fields a link can carry, checked the same way when building and when reading: a link
+// that is built is always read back. Returns the first field outside the format.
+function outsideLimits(payload: Payload): LinkLimit | null {
+  if (!text(payload.t, LINK_LIMITS.title)) return 'title';
+  if (!Number.isInteger(payload.m) || payload.m < 0 || payload.m > LINK_LIMITS.time) return 'time';
+  if (!list(payload.i, LINK_LIMITS.ingredient)) return 'ingredients';
+  if (!list(payload.s, LINK_LIMITS.step)) return 'steps';
+  return null;
+}
+
+// Refuses a recipe the format cannot carry (unsupported, with its field) and a link longer
+// than MAX_LINK_LENGTH (size). The recipe itself is never changed.
 export function buildRecipeLink(recipe: Recipe, origin: string) {
   const code = (Object.keys(CODES) as Code[]).find(key => CODES[key] === recipe.category) ?? null;
   const payload: Payload = { t: recipe.title, c: code, m: recipe.time, i: recipe.ingredients, s: recipe.steps };
+  const limit = outsideLimits(payload);
+  if (limit) throw new RecipeLinkError('unsupported', limit);
   const url = `${origin.replace(/\/+$/, '')}${RECIPE_LINK_PATH}#${VERSION}.${toBase64Url(utf8(JSON.stringify(payload)))}`;
   if (url.length > MAX_LINK_LENGTH) throw new RecipeLinkError('size');
   return url;
 }
-
-const text = (value: unknown, max: number, empty = false): value is string =>
-  typeof value === 'string' && value.length <= max && (empty || value.trim().length > 0);
-const list = (value: unknown, max: number): value is string[] =>
-  Array.isArray(value) && value.length <= LIMITS.items && value.every(item => text(item, max));
 
 // Accepts the link alone or inside a pasted message; the address before the path is not
 // checked, the data is. Nothing is written here.
@@ -100,8 +118,7 @@ export function parseRecipeLink(input: string): SharedRecipe {
   let value: unknown;
   try { value = JSON.parse(fromUtf8(fromBase64Url(match[2]))); } catch { throw new RecipeLinkError('invalid'); }
   const payload = value as Payload;
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !text(payload.t, LIMITS.title)
-    || !(payload.c === null || Object.hasOwn(CODES, payload.c)) || !Number.isInteger(payload.m) || payload.m < 0 || payload.m > LIMITS.time
-    || !list(payload.i, LIMITS.ingredient) || !list(payload.s, LIMITS.step)) throw new RecipeLinkError('invalid');
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)
+    || !(payload.c === null || Object.hasOwn(CODES, payload.c)) || outsideLimits(payload)) throw new RecipeLinkError('invalid');
   return { title: payload.t, category: payload.c === null ? null : CODES[payload.c], time: payload.m, ingredients: [...payload.i], steps: [...payload.s] };
 }

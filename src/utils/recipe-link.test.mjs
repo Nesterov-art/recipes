@@ -56,6 +56,99 @@ test('a long Cyrillic recipe stays within the limit; a longer one is refused bef
   assert.throws(() => buildRecipeLink(huge, origin), error => error instanceof RecipeLinkError && error.code === 'size');
 });
 
+// The contract: a link buildRecipeLink returns is always read by parseRecipeLink, and gives
+// back the recipe as it was. A recipe the format cannot carry is refused when building,
+// naming the field, instead of becoming a link the receiver is told is damaged.
+const shared = r => ({ title: r.title, category: r.category, time: r.time, ingredients: r.ingredients, steps: r.steps });
+const limitOf = r => { try { buildRecipeLink(r, origin); return 'ok'; } catch (error) { assert(error instanceof RecipeLinkError, String(error)); return error.code === 'unsupported' ? error.limit : error.code; } };
+
+test('every link that is built is read back, at the bounds of each field', () => {
+  const accepted = [
+    recipe,
+    { ...recipe, title: 'Т'.repeat(200) },
+    { ...recipe, ingredients: Array.from({ length: 100 }, (_, i) => `${i}`) },
+    { ...recipe, steps: Array.from({ length: 100 }, (_, i) => `${i}.`) },
+    { ...recipe, ingredients: [], steps: [] },
+    { ...recipe, ingredients: ['и'.repeat(500)] },
+    { ...recipe, steps: ['ш'.repeat(1000)] },
+    { ...recipe, time: 10_000 },
+    { ...recipe, time: 0 },
+    { ...recipe, title: 'Пирог «бабушкин» & чай #1 😊 <b>жирный</b> \\ "кавычки"', ingredients: ['Сахар — по вкусу 😊', '中文 — 1'], steps: ['\u{1F373} Жарить.'] },
+  ];
+  for (const r of accepted) {
+    const url = buildRecipeLink(r, origin);
+    assert(url.length <= MAX_LINK_LENGTH);
+    assert.deepEqual(parseRecipeLink(url), shared(r), r.title.slice(0, 20));
+  }
+});
+
+test('a recipe the format cannot carry is refused when building, naming what is outside it', () => {
+  for (const [r, limit] of [
+    [{ ...recipe, title: 'Т'.repeat(201) }, 'title'],
+    [{ ...recipe, title: '   ' }, 'title'],
+    [{ ...recipe, ingredients: Array.from({ length: 101 }, (_, i) => `${i}`) }, 'ingredients'],
+    [{ ...recipe, ingredients: ['Вода — 1 л', ' '] }, 'ingredients'],
+    [{ ...recipe, ingredients: ['и'.repeat(501)] }, 'ingredients'],
+    [{ ...recipe, steps: Array.from({ length: 101 }, (_, i) => `${i}.`) }, 'steps'],
+    [{ ...recipe, steps: [''] }, 'steps'],
+    [{ ...recipe, steps: ['ш'.repeat(2001)] }, 'steps'],
+    [{ ...recipe, time: 12_000 }, 'time'],
+    [{ ...recipe, time: 1.5 }, 'time'],
+    [{ ...recipe, time: -1 }, 'time'],
+  ]) assert.equal(limitOf(r), limit, `${limit}: ${JSON.stringify(r).slice(0, 60)}`);
+  // Nothing about the recipe is changed by trying.
+  const original = { ...recipe, time: 1.5 };
+  const copy = structuredClone(original);
+  limitOf(original);
+  assert.deepEqual(original, copy);
+});
+
+test('the 4 000-character limit stays its own error, checked after the fields', () => {
+  // Grow one step until the link is as long as allowed, then one character more.
+  const fitsWith = k => limitOf({ ...recipe, steps: ['ш'.repeat(k)] }) === 'ok';
+  let n = 0;
+  while (fitsWith(n + 1) && n < 1999) n++;
+  const fits = { ...recipe, steps: ['ш'.repeat(n)] };
+  assert(buildRecipeLink(fits, origin).length <= MAX_LINK_LENGTH);
+  assert.deepEqual(parseRecipeLink(buildRecipeLink(fits, origin)), shared(fits));
+  assert.equal(limitOf({ ...recipe, steps: ['ш'.repeat(n + 1)] }), 'size');
+});
+
+test('random recipes: whatever is built is read back unchanged', () => {
+  let seed = 11;
+  const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  // Mostly valid lines; now and then an empty one or one over the 500-character limit.
+  const word = () => next() < 0.03 ? ['', ' ', 'ш'.repeat(501 + Math.floor(next() * 100))][Math.floor(next() * 3)]
+    : ['Вода', 'соль 😊', '中', 'a & b', '#1', 'ш'.repeat(Math.floor(next() * 120) + 1)][Math.floor(next() * 6)];
+  let built = 0;
+  for (let round = 0; round < 400; round++) {
+    const r = {
+      id: `${round}`, title: next() < 0.1 ? 'Т'.repeat(195 + Math.floor(next() * 10)) : `Рецепт ${round}`,
+      category: [null, 'Завтрак', 'Обед', 'Ужин'][Math.floor(next() * 4)],
+      time: [0, 15, 45, 10_000, 0, 30, 10_001, 1.5, -2][Math.floor(next() * 9)],
+      ingredients: Array.from({ length: next() < 0.05 ? 101 : Math.floor(next() * 12) }, word), steps: Array.from({ length: Math.floor(next() * 6) }, word),
+    };
+    let url;
+    try { url = buildRecipeLink(r, origin); } catch (error) { assert(error instanceof RecipeLinkError && ['unsupported', 'size'].includes(error.code)); continue; }
+    built++;
+    assert.deepEqual(parseRecipeLink(url), shared(r), `round ${round}`);
+  }
+  assert(built > 20, `${built} links built`);
+});
+
+test('links handed out before this check still open', () => {
+  // Built by the version in APK 1.0.0 (4) and on the web: the format is unchanged.
+  const issued = 'https://neyroshi-recipes.expo.app/shared-recipe#1.eyJ0Ijoi0KHRi9GA0L3QuNC60LggwqvQutCw0Log0YMg0LHQsNCx0YPRiNC60LjCuyAmINGH0LDQuSAjMSDwn5iKIiwiYyI6ImIiLCJtIjoyNSwiaSI6WyLQotCy0L7RgNC-0LMgNSUg4oCUIDQwMCDQsyIsItCh0LDRhdCw0YAg4oCUINC_0L4g0LLQutGD0YHRgyJdLCJzIjpbItCh0LzQtdGI0LDRgtGMLiIsItCe0LHQttCw0YDQuNGC0Ywg0L_QviAzINC80LjQvdGD0YLRiy4iXX0';
+  const recipeOfIt = { id: 'x', title: 'Сырники «как у бабушки» & чай #1 😊', category: 'Завтрак', time: 25, ingredients: ['Творог 5% — 400 г', 'Сахар — по вкусу'], steps: ['Смешать.', 'Обжарить по 3 минуты.'] };
+  assert.deepEqual(parseRecipeLink(issued), shared(recipeOfIt));
+  assert.equal(buildRecipeLink(recipeOfIt, origin), issued);
+});
+
+test('a category outside Breakfast, Lunch and Dinner travels as none (known, format unchanged)', () => {
+  const own = { ...recipe, category: 'Десерт' };
+  assert.equal(parseRecipeLink(buildRecipeLink(own, origin)).category, null);
+});
+
 test('not a Monorec link, damaged, cut or oversized data and an unknown version are told apart', () => {
   const url = buildRecipeLink(recipe, origin);
   const code = text => { try { parseRecipeLink(text); return 'ok'; } catch (error) { assert(error instanceof RecipeLinkError, String(error)); return error.code; } };

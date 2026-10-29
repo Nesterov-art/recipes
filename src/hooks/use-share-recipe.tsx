@@ -6,7 +6,7 @@ import type { Recipe } from '@/constants/recipes';
 import { useSettings } from '@/context/settings-context';
 import { useToast } from '@/context/toast-context';
 import { useStyles } from '@/styles';
-import { buildRecipeLink, RecipeLinkError, SHARE_ORIGIN } from '@/utils/recipe-link';
+import { buildRecipeLink, LINK_LIMITS, RecipeLinkError, SHARE_ORIGIN } from '@/utils/recipe-link';
 
 type Notice = { error: string } | { link: string };
 
@@ -21,6 +21,21 @@ export function useShareRecipe() {
   const busy = useRef(false);
   const [notice, setNotice] = useState<Notice | null>(null);
 
+  // Why no link was made: too long, a field the format cannot carry (named, with its limit),
+  // or anything else.
+  function linkError(error: unknown) {
+    if (!(error instanceof RecipeLinkError)) return t('recipeLinkFailed');
+    if (error.code === 'size') return t('recipeLinkTooLong');
+    if (error.code !== 'unsupported' || !error.limit) return t('recipeLinkFailed');
+    const detail = {
+      title: t('recipeLinkLimitTitle', { max: LINK_LIMITS.title }),
+      time: t('recipeLinkLimitTime', { max: LINK_LIMITS.time }),
+      ingredients: t('recipeLinkLimitIngredients', { items: LINK_LIMITS.items, max: LINK_LIMITS.ingredient }),
+      steps: t('recipeLinkLimitSteps', { items: LINK_LIMITS.items, max: LINK_LIMITS.step }),
+    }[error.limit];
+    return t('recipeLinkUnsupported', { detail });
+  }
+
   async function share(recipe: Recipe) {
     if (busy.current) return;
     busy.current = true;
@@ -29,7 +44,7 @@ export function useShareRecipe() {
       try {
         link = buildRecipeLink(recipe, Platform.OS === 'web' ? window.location.origin : SHARE_ORIGIN);
       } catch (error) {
-        setNotice({ error: t(error instanceof RecipeLinkError && error.code === 'size' ? 'recipeLinkTooLong' : 'recipeLinkFailed') });
+        setNotice({ error: linkError(error) });
         return;
       }
       if (Platform.OS !== 'web') {
