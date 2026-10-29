@@ -15,7 +15,7 @@ test('one "+" opens the add menu; each choice opens its existing screen', async 
   const manual = sheet.getByRole('button', { name: 'Создать вручную', exact: true });
   const byLink = sheet.getByRole('button', { name: 'Добавить по ссылке', exact: true });
   await expect(manual).toContainText('Новый рецепт с нуля');
-  await expect(byLink).toContainText('Импорт рецепта из Monorec');
+  await expect(byLink).toContainText('Ссылка Monorec или страница рецепта');
   // Comfortable targets: at least 48 px high.
   for (const item of [manual, byLink]) expect((await item.boundingBox())!.height).toBeGreaterThanOrEqual(48);
 
@@ -52,8 +52,8 @@ test('the add menu closes with Escape and outside it, and opens again cleanly', 
 });
 
 for (const variant of [
-  { name: 'Russian, light', settings: { theme: 'light', language: 'ru' }, add: 'Добавить рецепт', manual: 'Создать вручную', link: 'Добавить по ссылке', hint: 'Импорт рецепта из Monorec' },
-  { name: 'English, dark', settings: { theme: 'dark', language: 'en' }, add: 'Add recipe', manual: 'Create manually', link: 'Add from link', hint: 'Import a recipe from Monorec' },
+  { name: 'Russian, light', settings: { theme: 'light', language: 'ru' }, add: 'Добавить рецепт', manual: 'Создать вручную', link: 'Добавить по ссылке', hint: 'Ссылка Monorec или страница рецепта' },
+  { name: 'English, dark', settings: { theme: 'dark', language: 'en' }, add: 'Add recipe', manual: 'Create manually', link: 'Add from link', hint: 'A Monorec link or a recipe page' },
 ] as const) {
   test.describe(`add menu at 320 px with large text: ${variant.name}`, () => {
     test.use({ viewport: { width: 320, height: 568 }, seedSettings: { ...variant.settings, shoppingCompletedBehavior: 'moveDown' } });

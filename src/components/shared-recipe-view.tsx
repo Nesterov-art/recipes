@@ -5,13 +5,18 @@ import { useStyles } from '@/styles';
 import type { SharedRecipe } from '@/utils/recipe-link';
 import { categoryLabel, plural } from '@/utils/recipes';
 
-// A recipe received by link, read-only: the in-app preview and the browser page.
-export function SharedRecipeView({ recipe }: { recipe: SharedRecipe }) {
-  const { language, t } = useSettings();
+// A Monorec link always has a title and a time; a page of a cooking site may lack either.
+type Viewed = Omit<SharedRecipe, 'time'> & { time: number | null };
+
+// A recipe received by link or found on a page, read-only: the in-app preview and the browser
+// page. An unknown time reads "Time not given", never 0 minutes.
+export function SharedRecipeView({ recipe }: { recipe: Viewed }) {
+  const { colors, language, t } = useSettings();
   const styles = useStyles();
-  const details = [recipe.category ? categoryLabel(recipe.category, t) : null, `${recipe.time} ${t('minuteShort')}`].filter(Boolean).join(' · ');
+  const time = recipe.time === null ? t('timeNotSpecified') : `${recipe.time} ${t('minuteShort')}`;
+  const details = [recipe.category ? categoryLabel(recipe.category, t) : null, time].filter(Boolean).join(' · ');
   return <>
-    <Text accessibilityRole="header" style={styles.recipeTitle}>{recipe.title}</Text>
+    <Text accessibilityRole="header" style={[styles.recipeTitle, !recipe.title && { color: colors.muted }]}>{recipe.title || t('siteNoTitle')}</Text>
     <Text style={styles.homeRowMeta}>{details}</Text>
 
     <View style={styles.recipeSectionHeading}>

@@ -66,7 +66,7 @@ function payloadOf(link: string) {
 }
 async function show(page: Page, text: string) {
   await page.getByRole('textbox', { name: 'Ссылка на рецепт', exact: true }).fill(text);
-  await button(page, 'Показать рецепт').click();
+  await button(page, 'Найти рецепт').click();
 }
 
 test.describe('sharing', () => {
@@ -253,7 +253,8 @@ test('other text, damaged or cut links and a newer version are explained without
   await openImport(page);
   const before = await book(page);
   for (const [text, message] of [
-    ['https://example.com/recipes/42', 'Это не ссылка на рецепт Monorec.'],
+    // A site's address is now looked up as a recipe page (recipe-site-import.spec.ts); text without one is not a link.
+    ['Посмотри рецепт сырников у бабушки', 'Это не ссылка на рецепт Monorec.'],
     [link.slice(0, -10), 'Ссылка повреждена или обрезана. Попроси отправить её ещё раз.'],
     [link.replace('#1.', '#7.'), 'Эта ссылка создана в более новой версии Monorec. Обнови приложение.'],
   ] as const) {
@@ -267,7 +268,7 @@ test('other text, damaged or cut links and a newer version are explained without
 });
 
 // Long links on a small screen: the field stays short and scrolls inside, the button stays in
-// view, and each result (a preview or an error) is brought into view after "Show recipe".
+// view, and each result (a preview or an error) is brought into view after "Find recipe".
 const longRecipe = (n: number, steps: number) => ({
   id: `e2e-long-${n}`, title: `Пирог «как у бабушки» & чай #${n} 😊`, category: 'Ужин', time: 40,
   ingredients: Array.from({ length: 10 }, (_, i) => `Ингредиент ${i} — ${100 * (i + 1)} г`),
@@ -276,9 +277,9 @@ const longRecipe = (n: number, steps: number) => ({
 const long = [longRecipe(1, 6), longRecipe(2, 9)];
 for (const variant of [
   { name: 'Russian, light, standard text', settings: { theme: 'light', language: 'ru' }, large: false,
-    share: 'Поделиться рецептом', label: 'Ссылка на рецепт', show: 'Показать рецепт', duplicate: 'Такой рецепт уже есть в книге.', invalid: 'Ссылка повреждена или обрезана. Попроси отправить её ещё раз.' },
+    share: 'Поделиться рецептом', label: 'Ссылка на рецепт', show: 'Найти рецепт', duplicate: 'Такой рецепт уже есть в книге.', invalid: 'Ссылка повреждена или обрезана. Попроси отправить её ещё раз.' },
   { name: 'English, dark, large text', settings: { theme: 'dark', language: 'en' }, large: true,
-    share: 'Share recipe', label: 'Recipe link', show: 'Show recipe', duplicate: 'This recipe is already in your book.', invalid: 'The link is damaged or cut off. Ask for it to be sent again.' },
+    share: 'Share recipe', label: 'Recipe link', show: 'Find recipe', duplicate: 'This recipe is already in your book.', invalid: 'The link is damaged or cut off. Ask for it to be sent again.' },
 ] as const) {
   test.describe(`long links at 320 px: ${variant.name}`, () => {
     test.use({
@@ -348,7 +349,7 @@ test('a long link pasted from the clipboard arrives whole', async ({ page, conte
   await field.focus();
   await page.keyboard.press('ControlOrMeta+V');
   await expect(field).toHaveValue(text);
-  await button(page, 'Показать рецепт').click();
+  await button(page, 'Найти рецепт').click();
   await expect(page.getByTestId('recipe-link-preview').getByRole('heading', { name: recipes[0].title, exact: true })).toBeInViewport();
 });
 
@@ -373,7 +374,7 @@ test.describe('English, dark theme', () => {
     await button(page, 'Add recipe').click();
     await button(page, 'Add from link').click();
     await expect(page.getByRole('textbox', { name: 'Recipe link', exact: true })).toBeVisible();
-    await button(page, 'Show recipe').click();
+    await button(page, 'Find recipe').click();
     await expect(page.getByRole('alert')).toHaveText('This is not a Monorec recipe link.');
   });
 });

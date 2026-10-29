@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { type ComponentRef, useRef, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { type ComponentRef, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SharedRecipeView } from '@/components/shared-recipe-view';
@@ -10,8 +10,16 @@ import { useRecipes } from '@/context/recipes-context';
 import { PaletteProvider, useSettings } from '@/context/settings-context';
 import { useToast } from '@/context/toast-context';
 import { useStyles } from '@/styles';
+import { fetchRecipePage } from '@/utils/fetch-recipe-page';
+import { linkTarget, loadMessage, type Message, parseMessage, problemMessage } from '@/utils/import-link-target';
 import { mergeRecipeBackup, type RecipeBackup } from '@/utils/recipe-backup';
-import { LINK_ERRORS, parseRecipeLink, RecipeLinkError, type SharedRecipe } from '@/utils/recipe-link';
+import { parseRecipePage, type RecipeImportResult } from '@/utils/recipe-import';
+import { LINK_ERRORS, SHARE_ORIGIN, type SharedRecipe } from '@/utils/recipe-link';
+
+// A recipe found on a cooking site: shown, not saved (saving comes with the next stage).
+type SiteRecipe = Extract<RecipeImportResult, { status: 'complete' | 'partial' }> & { host: string };
+// Monorec's own host names: a Monorec page that is not a recipe link is not loaded as a site.
+const OWN_HOSTS = [new URL(SHARE_ORIGIN).hostname, ...(Platform.OS === 'web' && typeof window !== 'undefined' ? [window.location.hostname] : [])];
 
 export default function ImportLinkScreen() {
   return <PaletteProvider palette={MONOREC_THEMES}><ImportLinkContent /></PaletteProvider>;
@@ -40,13 +48,53 @@ function ImportLinkContent() {
   });
   const duplicate = shared !== null && mergeRecipeBackup(recipes, recipeMeta, backup(shared, 'preview')).duplicates > 0;
 
+  // A page of a cooking site. One load at a time: each has a number, and only the latest one
+  // may change the screen, so a late answer to an older load (or after leaving) is dropped.
+  const [site, setSite] = useState<SiteRecipe | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState('');
+  const load = useRef<{ id: number; controller: AbortController } | null>(null);
+  const loads = useRef(0);
+  const say = (message: Message) => t(message.key, message.values);
+  function stopLoading() {
+    load.current?.controller.abort();
+    load.current = null;
+    loads.current++;
+    setLoading(false);
+  }
+  useEffect(() => () => { load.current?.controller.abort(); load.current = null; loads.current++; }, []);
+  // A site recipe is a duplicate only when every field is known and matches one in the book exactly.
+  const siteDuplicate = site?.status === 'complete' && site.draft.time !== null
+    && mergeRecipeBackup(recipes, recipeMeta, backup({ ...site.draft, time: site.draft.time }, 'preview')).duplicates > 0;
+
+  async function findOnSite(url: string) {
+    const id = ++loads.current;
+    const controller = new AbortController();
+    load.current = { id, controller };
+    setLoading(true);
+    const loaded = await fetchRecipePage(url, { signal: controller.signal });
+    if (loads.current !== id) return;
+    load.current = null;
+    setLoading(false);
+    if (loaded.status === 'cancelled') { setNotice(say(loadMessage(loaded, Platform.OS === 'web'))); return; }
+    if (loaded.status !== 'success') { setError(say(loadMessage(loaded, Platform.OS === 'web'))); return; }
+    const parsed = parseRecipePage(loaded.html);
+    if (parsed.status === 'complete' || parsed.status === 'partial') setSite({ ...parsed, host: new URL(loaded.url).hostname });
+    else setError(say(parseMessage(parsed)));
+  }
+
   function show() {
     Keyboard.dismiss();
+    if (loading) return;
     setShown(count => count + 1);
-    setShared(null); setError('');
-    try { setShared(parseRecipeLink(text)); } catch (err) {
-      setError(t(err instanceof RecipeLinkError ? LINK_ERRORS[err.code] : 'recipeLinkInvalid'));
-    }
+    setShared(null); setSite(null); setError(''); setNotice('');
+    const target = linkTarget(text, OWN_HOSTS);
+    if (target.kind === 'monorec') setShared(target.recipe);
+    else if (target.kind === 'monorecError') setError(t(LINK_ERRORS[target.code]));
+    else if (target.kind === 'notLink') setError(t('recipeLinkMissing'));
+    else if (target.kind === 'ownPage') setError(t('importLinkOwnPage'));
+    else if (target.kind === 'refused') setError(say(loadMessage(target.result, Platform.OS === 'web')));
+    else void findOnSite(target.url);
   }
   async function add() {
     if (!shared || saving.current) return;
@@ -78,7 +126,8 @@ function ImportLinkContent() {
 
           <TextInput
             value={text}
-            onChangeText={value => { setText(value); setError(''); }}
+            // A new address cancels a load still running for the old one.
+            onChangeText={value => { if (loading) stopLoading(); setText(value); setError(''); setNotice(''); }}
             placeholder={t('importLinkPlaceholder')}
             placeholderTextColor={colors.muted}
             selectionColor={colors.text}
@@ -90,11 +139,37 @@ function ImportLinkContent() {
             style={[styles.field, styles.fieldMultiline, styles.fieldCapped, { marginTop: 20 }]}
           />
           {!!error && <Text key={shown} onLayout={() => reveal(fieldY.current - 20)} accessibilityRole="alert" style={[styles.settingsHint, { color: colors.danger }]}>{error}</Text>}
-          <View style={styles.choiceActions}>
-            <Pressable onPress={show} style={({ pressed }) => [styles.choiceSecondary, pressed && { backgroundColor: colors.cardPressed }]} accessibilityRole="button">
-              <Text style={styles.choiceSecondaryText}>{t('importLinkShow')}</Text>
-            </Pressable>
-          </View>
+          {!!notice && <Text accessibilityLiveRegion="polite" style={styles.settingsHint}>{notice}</Text>}
+          {loading ? (
+            <View testID="recipe-site-loading" style={styles.choiceActions}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 }} accessibilityLiveRegion="polite">
+                <ActivityIndicator color={colors.muted} />
+                <Text style={[styles.settingsHint, { marginTop: 0 }]}>{t('siteLoading')}</Text>
+              </View>
+              <Pressable onPress={() => load.current?.controller.abort()} style={({ pressed }) => [styles.choiceSecondary, pressed && { backgroundColor: colors.cardPressed }]} accessibilityRole="button">
+                <Text style={styles.choiceSecondaryText}>{t('cancel')}</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.choiceActions}>
+              <Pressable onPress={show} style={({ pressed }) => [styles.choiceSecondary, pressed && { backgroundColor: colors.cardPressed }]} accessibilityRole="button">
+                <Text style={styles.choiceSecondaryText}>{t('importLinkShow')}</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {site && <View key={shown} testID="recipe-site-preview" style={{ marginTop: 28 }} onLayout={event => reveal(event.nativeEvent.layout.y)}>
+            {/* What can be done with it comes first: a preview only, and what is missing or doubtful. */}
+            <Text style={[styles.settingsHint, { marginTop: 0 }]}>{siteDuplicate ? t('recipeLinkDuplicate') : t('sitePreviewHint')}</Text>
+            {site.status === 'partial' && <View testID="recipe-site-problems" style={{ marginTop: 8 }}>
+              <Text style={[styles.settingsHint, { marginTop: 0, color: colors.text }]}>{t('sitePartialHint')}</Text>
+              {site.problems.map((problem, index) => (
+                <Text key={`${problem.field}-${problem.problem}-${index}`} style={[styles.settingsHint, { marginTop: 4 }]}>• {say(problemMessage(problem))}</Text>
+              ))}
+            </View>}
+            <Text style={[styles.settingsHint, { marginTop: 8, marginBottom: 12 }]}>{t('siteSource', { host: site.host })}</Text>
+            <SharedRecipeView recipe={site.draft} />
+          </View>}
 
           {shared && <View key={shown} testID="recipe-link-preview" style={{ marginTop: 28 }} onLayout={event => reveal(event.nativeEvent.layout.y)}>
             {/* What happens to this recipe comes first, above the recipe itself. */}
