@@ -3,7 +3,7 @@ import { findDuplicate } from './import-draft.ts';
 
 // Creating a recipe never replaces one: the id must be free, checked inside the store's own
 // update (one queue for every write of the book), so the check and the write cannot be split by
-// another save. Editing keeps its own operation (updateRecipe) and its id.
+// another save. Editing keeps its id and needs the recipe to still be there.
 
 type Book = { recipes: Recipe[] };
 type Store<T extends Book> = { update: (updater: (data: T) => T, after?: () => void) => Promise<boolean> };
@@ -24,6 +24,22 @@ export async function createRecipeIn<T extends Book>(store: Store<T>, recipe: Re
   }, () => { if (!outcome.refused) after?.(); });
   if (outcome.refused) return outcome.refused;
   return saved ? 'created' : 'notSaved';
+}
+
+// updated: written and confirmed; missing: no recipe has this id any more (deleted meanwhile),
+// nothing changed and no success reported; notSaved: as for creating.
+export type UpdateResult = 'updated' | 'missing' | 'notSaved';
+
+// Editing changes only the recipe with this id, and only when it is still in the book: the
+// check runs inside the store's update, like creating.
+export async function updateRecipeIn<T extends Book>(store: Store<T>, recipe: Recipe, after?: () => void): Promise<UpdateResult> {
+  const outcome = { missing: false };
+  const saved = await store.update(current => {
+    outcome.missing = !current.recipes.some(item => item.id === recipe.id);
+    return outcome.missing ? current : { ...current, recipes: current.recipes.map(item => (item.id === recipe.id ? recipe : item)) };
+  }, () => { if (!outcome.missing) after?.(); });
+  if (outcome.missing) return 'missing';
+  return saved ? 'updated' : 'notSaved';
 }
 
 export const newRecipeId = () => `${Date.now()}-${Math.random()}`;

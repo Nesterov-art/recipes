@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { type ComponentRef, useEffect, useRef, useState } from 'react';
+import { type ComponentRef, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -12,7 +12,7 @@ import { PaletteProvider, useSettings } from '@/context/settings-context';
 import { useToast } from '@/context/toast-context';
 import { useStyles } from '@/styles';
 import { fetchRecipePage } from '@/utils/fetch-recipe-page';
-import { findDuplicate, recipeFromDraft } from '@/utils/import-draft';
+import { directFields, findDuplicate } from '@/utils/import-draft';
 import { linkTarget, loadMessage, type Message, parseMessage, problemMessage } from '@/utils/import-link-target';
 import { mergeRecipeBackup, type RecipeBackup } from '@/utils/recipe-backup';
 import { createWithFreshId } from '@/utils/recipe-create';
@@ -23,6 +23,10 @@ import { LINK_ERRORS, SHARE_ORIGIN, type SharedRecipe } from '@/utils/recipe-lin
 type SiteRecipe = Extract<RecipeImportResult, { status: 'complete' | 'partial' }> & { host: string };
 // Monorec's own host names: a Monorec page that is not a recipe link is not loaded as a site.
 const OWN_HOSTS = [new URL(SHARE_ORIGIN).hostname, ...(Platform.OS === 'web' && typeof window !== 'undefined' ? [window.location.hostname] : [])];
+// A Monorec link's recipe as a one-recipe backup, for the regular import and its duplicate check.
+const backup = (recipe: SharedRecipe, id: string): RecipeBackup => ({
+  format: 'recipes-backup', version: 1, exportedAt: new Date().toISOString(), recipes: [{ id, ...recipe }], recipeMeta: {},
+});
 
 export default function ImportLinkScreen() {
   return <PaletteProvider palette={MONOREC_THEMES}><ImportLinkContent /></PaletteProvider>;
@@ -47,10 +51,9 @@ function ImportLinkContent() {
   const fieldY = useRef(0);
   const [shown, setShown] = useState(0);
   const reveal = (y: number) => scroll.current?.scrollTo({ y: Math.max(0, contentY.current + y - insets.top - 16), animated: true });
-  const backup = (recipe: SharedRecipe, id: string): RecipeBackup => ({
-    format: 'recipes-backup', version: 1, exportedAt: new Date().toISOString(), recipes: [{ id, ...recipe }], recipeMeta: {},
-  });
-  const duplicate = shared !== null && mergeRecipeBackup(recipes, recipeMeta, backup(shared, 'preview')).duplicates > 0;
+  // Searched again only when the previewed recipe or the book changes, not on every render (each
+  // keystroke in the field renders this screen).
+  const duplicate = useMemo(() => shared !== null && mergeRecipeBackup(recipes, recipeMeta, backup(shared, 'preview')).duplicates > 0, [shared, recipes, recipeMeta]);
 
   // A page of a cooking site. One load at a time: each has a number, and only the latest one
   // may change the screen, so a late answer to an older load (or after leaving) is dropped.
@@ -72,20 +75,19 @@ function ImportLinkContent() {
     load.current?.controller.abort(); load.current = null; loads.current++;
     if (offered.current) drafts.clear(offered.current);
   }, [drafts]);
-  // A site recipe that is whole can be added as is; it is a duplicate only when every field
-  // matches one in the book exactly (the existing comparison).
-  const whole = site?.status === 'complete' ? recipeFromDraft(site.draft, 'preview') : null;
-  const siteDuplicate = whole ? findDuplicate(recipes, { title: whole.title, category: whole.category, time: whole.time, ingredients: whole.ingredients, steps: whole.steps }) : null;
+  // A site recipe can be added as is when it is whole in the form's terms and its only notes need
+  // no decision (no sure category, waiting time); it is a duplicate only when every field matches
+  // one in the book exactly (the existing comparison). Both are kept until the recipe or the book changes.
+  const whole = useMemo(() => (site ? directFields(site.draft, site.problems) : null), [site]);
+  const siteDuplicate = useMemo(() => (whole ? findDuplicate(recipes, whole) : null), [whole, recipes]);
   // Adding: created under a free id only, refused if an exact copy is in the book (checked inside
   // the write), and no second write while one is running.
   const [adding, setAdding] = useState<'idle' | 'saving' | 'failed' | 'idConflict'>('idle');
   const addingNow = useRef(false);
   async function addSite() {
     if (!site || addingNow.current) return;
-    const recipe = recipeFromDraft(site.draft, 'new');
-    if (!recipe) return;
-    const { id: _id, ...fields } = recipe;
-    if (findDuplicate(recipes, fields)) return;
+    const fields = directFields(site.draft, site.problems);
+    if (!fields || findDuplicate(recipes, fields)) return;
     addingNow.current = true;
     setAdding('saving');
     const { result } = await createWithFreshId(createRecipe, fields, id => router.replace({ pathname: '/recipe/[id]', params: { id } }), { refuseDuplicate: true });

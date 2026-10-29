@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { draftFields, findDuplicate, formTime, recipeFromDraft } from './import-draft.ts';
+import { directFields, draftFields, findDuplicate, formTime, recipeFromDraft } from './import-draft.ts';
+import { parseRecipePage } from './recipe-import.ts';
 
 const deepFreeze = value => { if (value && typeof value === 'object') { Object.values(value).forEach(deepFreeze); Object.freeze(value); } return value; };
 const draft = (over = {}) => deepFreeze({
@@ -53,6 +54,62 @@ test('a duplicate is an exact match of every field, found with the existing back
   const many = Array.from({ length: 3000 }, (_, i) => ({ id: `r${i}`, title: `Рецепт ${i}`, category: null, time: i, ingredients: [`П ${i}`], steps: [`Ш ${i}`] }));
   assert.equal(findDuplicate([...many, book[1]], same), 'b');
   assert.deepEqual(book[1].ingredients, ['Творог 5% — 400 г', 'Яйцо — 1 шт.']);
+});
+
+// A page with one Recipe, as the parser reads it; the result is what the preview gets.
+const parsed = over => parseRecipePage(`<script type="application/ld+json">${JSON.stringify({
+  '@type': 'Recipe', name: 'Сырники', recipeCategory: 'Завтрак', totalTime: 'PT30M',
+  recipeIngredient: ['Творог — 400 г'], recipeInstructions: ['Смешать.', 'Обжарить.'], ...over,
+})}</script>`);
+const direct = over => { const r = parsed(over); return directFields(r.draft, r.problems); };
+
+test('direct add: whole recipes, and partial ones whose only notes are a missing or unclear category or waiting time', () => {
+  assert.deepEqual(direct({}), { title: 'Сырники', category: 'Завтрак', time: 30, ingredients: ['Творог — 400 г'], steps: ['Смешать.', 'Обжарить.'] });
+  // Status partial, but nothing the person must decide: the category stays empty.
+  for (const over of [{ recipeCategory: undefined }, { recipeCategory: 'Выпечка' }, { recipeCategory: 'Breakfast, Brunch, Main course' }]) {
+    const r = parsed(over);
+    assert.equal(r.status, 'partial', JSON.stringify(over));
+    assert.deepEqual(direct(over), { title: 'Сырники', category: null, time: 30, ingredients: ['Творог — 400 г'], steps: ['Смешать.', 'Обжарить.'] }, JSON.stringify(over));
+  }
+  // The total may include waiting: it is still the page's time, kept as given.
+  const waiting = parsed({ prepTime: 'PT30M', cookTime: 'PT2H15M', totalTime: 'PT5H45M', recipeCategory: undefined });
+  assert.deepEqual(waiting.problems.map(p => p.problem), ['mayIncludeWaiting', 'missing']);
+  assert.equal(directFields(waiting.draft, waiting.problems).time, 345);
+});
+
+test('direct add refused: no title, no or unclear time, no ingredients, no steps', () => {
+  for (const over of [
+    { name: '' },
+    { totalTime: undefined },
+    { totalTime: '10 minutes' },
+    { totalTime: 'PT0M' },
+    { totalTime: 'PT90S' },
+    { totalTime: 'PT20M', prepTime: 'PT15M', cookTime: 'PT30M' },
+    // Only one part of the time is known: an estimate the person should confirm.
+    { totalTime: undefined, cookTime: 'PT40M' },
+    { recipeIngredient: [] },
+    { recipeInstructions: [] },
+  ]) assert.equal(direct(over), null, JSON.stringify(over));
+});
+
+test('direct add gives exactly what the form would save, and never changes the draft', () => {
+  const r = parsed({ recipeCategory: undefined });
+  const before = JSON.stringify(r.draft);
+  const fields = directFields(r.draft, r.problems);
+  assert.equal(JSON.stringify(r.draft), before);
+  fields.ingredients.push('x');
+  assert.equal(r.draft.ingredients.length, 1);
+  const form = draftFields(r.draft);
+  assert.deepEqual({ title: form.title, category: form.category, time: Number(form.time), ingredients: form.ingredients.split('\n'), steps: form.steps.split('\n') },
+    { ...directFields(r.draft, r.problems) });
+});
+
+test('a duplicate is found for any draft that can be saved directly, partial or not', () => {
+  const r = parsed({ recipeCategory: undefined });
+  const fields = directFields(r.draft, r.problems);
+  const book = [{ id: 'mine', ...fields }];
+  assert.equal(findDuplicate(book, fields), 'mine');
+  assert.equal(findDuplicate([{ id: 'mine', ...fields, category: 'Завтрак' }], fields), null);
 });
 
 test('time in the form: an imported draft must have one, a manual recipe keeps its existing rule', () => {

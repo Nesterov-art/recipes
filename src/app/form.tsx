@@ -71,8 +71,9 @@ function FormContent({ imported }: { imported: (ImportedDraft & { key: string })
   const [steps, setSteps] = useState(start.steps);
   const [category, setCategory] = useState<string | null>(start.category);
   const saving = useRef(false);
-  // No free id could be found for a new recipe (three taken in a row): nothing was written.
-  const [idConflict, setIdConflict] = useState(false);
+  // Nothing was written: no free id for a new recipe (three taken in a row), or the recipe being
+  // edited is no longer in the book. The person's input stays on screen.
+  const [refused, setRefused] = useState<'idConflict' | 'missing' | null>(null);
   const heading = initial ? t('editing') : t('newRecipe');
   const titleStyle = useFittedTitle(heading, styles.recipeTitle.fontSize);
   const [errors, setErrors] = useState<{ title: boolean; time: false | 'invalid' | 'required' }>({ title: false, time: false });
@@ -126,7 +127,7 @@ function FormContent({ imported }: { imported: (ImportedDraft & { key: string })
       if (existing) { nameDuplicate(existing); return; }
     }
     saving.current = true;
-    setIdConflict(false);
+    setRefused(null);
     // Only a saved recipe lifts the guard; a failed write keeps the form open and
     // guarded, and the existing Retry finishes it. A recipe from a site then opens itself.
     const done = (id: string) => {
@@ -136,12 +137,12 @@ function FormContent({ imported }: { imported: (ImportedDraft & { key: string })
       router.replace({ pathname: '/recipe/[id]', params: { id } });
     };
     if (initial) {
-      await updateRecipe({ id: initial.id, ...fields }, () => done(initial.id));
+      if (await updateRecipe({ id: initial.id, ...fields }, () => done(initial.id)) === 'missing') setRefused('missing');
     } else {
       // Created only under an id no recipe has; the copy check is repeated inside the write.
       const { result } = await createWithFreshId(createRecipe, fields, done, { refuseDuplicate: imported !== null });
       if (result === 'duplicate') nameDuplicate(findDuplicate(recipes, fields));
-      if (result === 'idTaken') setIdConflict(true);
+      if (result === 'idTaken') setRefused('idConflict');
     }
     saving.current = false;
   }
@@ -276,7 +277,7 @@ function FormContent({ imported }: { imported: (ImportedDraft & { key: string })
             </View>}
           </View>}
 
-          {idConflict && <Text accessibilityRole="alert" style={[styles.fieldError, { marginTop: 24 }]}>{t('recipeIdConflict')}</Text>}
+          {refused && <Text accessibilityRole="alert" style={[styles.fieldError, { marginTop: 24 }]}>{t(refused === 'missing' ? 'recipeEditMissing' : 'recipeIdConflict')}</Text>}
 
           <View style={[styles.choiceActions, { marginTop: 32 }]}>
             <Pressable

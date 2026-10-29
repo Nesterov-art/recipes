@@ -1,6 +1,6 @@
 import { CATEGORIES, type Recipe } from '../constants/recipes.ts';
 import { mergeRecipeBackup } from './recipe-backup.ts';
-import type { RecipeDraft } from './recipe-import.ts';
+import type { ImportProblem, RecipeDraft } from './recipe-import.ts';
 
 // A recipe found on a cooking site on its way into the book: into the form's fields, or
 // straight into a Recipe when nothing is unknown. Nothing here writes or changes the draft.
@@ -24,6 +24,20 @@ export function recipeFromDraft(draft: RecipeDraft, id: string): Recipe | null {
     && (draft.category === null || CATEGORIES.some(category => category === draft.category));
   if (!known) return null;
   return { id, title: draft.title.trim(), category: draft.category, time: draft.time!, ingredients: [...draft.ingredients], steps: [...draft.steps] };
+}
+
+// Notes on a found recipe that need no decision from the person before saving it as is: no sure
+// category (saved without one) and a total time that may include waiting (kept as the page gives it).
+const SOFT: ReadonlySet<string> = new Set(['category:missing', 'category:ambiguous', 'time:mayIncludeWaiting']);
+// The fields to add straight from the preview, or null when the form must be used: the draft
+// must be whole in the form's terms and every note about it must be a soft one. This is about
+// saving safely, not about how completely the page was read.
+export function directFields(draft: RecipeDraft, problems: readonly ImportProblem[]): Omit<Recipe, 'id'> | null {
+  if (!problems.every(problem => SOFT.has(`${problem.field}:${problem.problem}`))) return null;
+  const recipe = recipeFromDraft(draft, '');
+  if (!recipe) return null;
+  const { id: _id, ...fields } = recipe;
+  return fields;
 }
 
 // The id of a recipe in the book with exactly these fields, by the comparison the backup

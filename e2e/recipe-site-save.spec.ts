@@ -362,6 +362,107 @@ test.describe('a new recipe whose id is already taken', () => {
   });
 });
 
+test.describe('adding as is depends on what the recipe needs, not on how completely it was read', () => {
+  test('no category: "Add" is offered, the note stays, the recipe is saved without a category', async ({ page }) => {
+    await sites(page, () => ({ body: recipePage(syrniki({ recipeCategory: 'Выпечка' })) }));
+    await openImport(page);
+    await find(page, `${SITE}/no-category`);
+    await expect(page.getByTestId('recipe-site-problems')).toContainText('Категория не определена.');
+    await expect(preview(page).getByText('Рецепт добавится в книгу как новый. Можно добавить сразу или сначала изменить.', { exact: true })).toBeVisible();
+    await button(page, 'Добавить в мою книгу').click();
+    await expect(page).toHaveURL(/\/recipe\/[^/]+$/);
+    expect((await book(page)).find(recipe => recipe.title === whole.title)).toMatchObject({ ...whole, category: null });
+  });
+
+  test('a total that may include waiting: the warning is shown and "Add" keeps the page\'s total', async ({ page }) => {
+    await sites(page, () => ({ body: recipePage(syrniki({ prepTime: 'PT30M', cookTime: 'PT2H15M', totalTime: 'PT5H45M' })) }));
+    await openImport(page);
+    await find(page, `${SITE}/waiting`);
+    await expect(page.getByTestId('recipe-site-problems')).toContainText('Время может включать ожидание: активная готовка — 165 мин.');
+    await button(page, 'Добавить в мою книгу').click();
+    await expect(page).toHaveURL(/\/recipe\/[^/]+$/);
+    expect((await book(page)).find(recipe => recipe.title === whole.title)).toMatchObject({ ...whole, time: 345 });
+  });
+
+  test('no time, no ingredients or no steps: only "Edit"', async ({ page }) => {
+    await sites(page, url => ({ body: recipePage(syrniki(url.endsWith('/no-time') ? { totalTime: undefined }
+      : url.endsWith('/no-ingredients') ? { recipeIngredient: [] } : { recipeInstructions: [] })) }));
+    await openImport(page);
+    const before = await book(page);
+    for (const path of ['/no-time', '/no-ingredients', '/no-steps']) {
+      await find(page, `${SITE}${path}`);
+      await expect(preview(page).getByText('Рецепт нужно проверить и дополнить перед сохранением — нажми «Изменить».', { exact: true })).toBeVisible();
+      await expect(button(page, 'Добавить в мою книгу')).toHaveCount(0);
+      await expect(button(page, 'Изменить')).toBeVisible();
+    }
+    expect(await book(page)).toEqual(before);
+  });
+
+  test.describe('the same recipe without a category already in the book', () => {
+    test.use({ seedRecipes: [[...recipes, { id: 'e2e-plain', ...whole, category: null }], { scope: 'test' }] });
+    test('is found as a duplicate although the page gave no category', async ({ page }) => {
+      await sites(page, () => ({ body: recipePage(syrniki({ recipeCategory: undefined })) }));
+      await openImport(page);
+      await find(page, `${SITE}/plain`);
+      await expect(preview(page).getByText('Такой рецепт уже есть в книге.', { exact: true })).toBeVisible();
+      await expect(button(page, 'Добавить в мою книгу')).toHaveCount(0);
+      await button(page, 'Открыть рецепт').click();
+      await expect(page).toHaveURL(/\/recipe\/e2e-plain$/);
+    });
+  });
+});
+
+test('the duplicate notice follows the book: shown once the recipe is saved, gone once it is deleted', async ({ page }) => {
+  await sites(page, () => ({ body: recipePage(syrniki()) }));
+  await openImport(page);
+  await find(page, `${SITE}/follow`);
+  await expect(button(page, 'Добавить в мою книгу')).toBeVisible();
+  // Saved through the form; the preview below stays mounted and must notice the new recipe.
+  await edit(page);
+  await button(page, 'Сохранить').click();
+  await expect(page).toHaveURL(/\/recipe\/[^/]+$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/import-link$/);
+  await expect(preview(page).getByText('Такой рецепт уже есть в книге.', { exact: true })).toBeVisible();
+  await expect(button(page, 'Добавить в мою книгу')).toHaveCount(0);
+  // Deleted from its page (forward again, the preview still below): the same preview offers
+  // "Add" again, nothing stale is left.
+  await page.goForward();
+  await expect(page).toHaveURL(/\/recipe\/[^/]+$/);
+  page.once('dialog', dialog => void dialog.accept());
+  await button(page, 'Удалить рецепт').click();
+  await expect(page).toHaveURL(/\/import-link$/);
+  await expect(preview(page).getByText('Такой рецепт уже есть в книге.', { exact: true })).toHaveCount(0);
+  await expect(button(page, 'Добавить в мою книгу')).toBeVisible();
+  expect((await book(page)).some(recipe => recipe.title === whole.title)).toBe(false);
+});
+
+test.describe('typing with a preview open on a large book', () => {
+  const big = Array.from({ length: 400 }, (_, i) => ({ id: `big-${i}`, title: `Рецепт ${i}`, category: null, time: i, ingredients: [`Продукт ${i}`], steps: [`Шаг ${i}`] }));
+  test.use({ seedRecipes: [[...recipes, ...big], { scope: 'test' }] });
+  test('does not search the book again on every keystroke', async ({ page }) => {
+    // Each full duplicate search turns every recipe of the book into a JSON signature.
+    await page.addInitScript(() => {
+      const original = JSON.stringify;
+      const w = window as unknown as { stringifyCalls: number };
+      w.stringifyCalls = 0;
+      JSON.stringify = function (this: unknown, ...args: Parameters<typeof JSON.stringify>) { w.stringifyCalls++; return original.apply(this, args); } as typeof JSON.stringify;
+    });
+    await sites(page, () => ({ body: recipePage(syrniki()) }));
+    await openImport(page);
+    await find(page, `${SITE}/typing`);
+    await expect(button(page, 'Добавить в мою книгу')).toBeVisible();
+    await page.waitForTimeout(300);
+    const field = page.getByRole('textbox', { name: 'Ссылка на рецепт', exact: true });
+    const start = await page.evaluate(() => (window as unknown as { stringifyCalls: number }).stringifyCalls);
+    await field.pressSequentially('abcdefghij');
+    const calls = await page.evaluate(() => (window as unknown as { stringifyCalls: number }).stringifyCalls) - start;
+    // Ten keystrokes; one search alone would be over 400 calls.
+    expect(calls).toBeLessThan(big.length);
+    await expect(button(page, 'Добавить в мою книгу')).toBeVisible();
+  });
+});
+
 test.describe('English, dark theme', () => {
   test.use({ seedSettings: { theme: 'dark', language: 'en', shoppingCompletedBehavior: 'moveDown' } });
   test('add, edit and the time question are in English', async ({ page }) => {

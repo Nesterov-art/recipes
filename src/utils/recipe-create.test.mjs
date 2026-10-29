@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { SafeStore } from './safe-storage.ts';
 import { bookConfig } from './storage-models.ts';
-import { createRecipeIn, createWithFreshId } from './recipe-create.ts';
+import { createRecipeIn, createWithFreshId, updateRecipeIn } from './recipe-create.ts';
 
 // The real store and book model over an in-memory storage, as in safe-storage.test.mjs.
 const key = 'recipe-book-v1';
@@ -106,6 +106,46 @@ test('a write that landed but reported an error is recognised by the store, not 
   assert.equal(saved, 1);
   assert.equal(book().recipes.filter(recipe => recipe.id === 'l1').length, 1);
   assert.equal(JSON.parse(io.data.get(key)).recipes.filter(recipe => recipe.id === 'l1').length, 1);
+});
+
+test('editing an existing recipe changes it in place, keeps its id, position, history and the others', async () => {
+  const { store, book, stored } = await open();
+  let saved = 0;
+  const edited = { ...omelet, title: 'Омлет с зеленью', ingredients: [...omelet.ingredients, 'Укроп'] };
+  assert.equal(await updateRecipeIn(store, edited, () => saved++), 'updated');
+  assert.equal(saved, 1);
+  assert.deepEqual(book().recipes, [edited, soup]);
+  assert.deepEqual(book().recipeMeta, meta);
+  assert.deepEqual(stored().recipes, [edited, soup]);
+});
+
+test('editing a recipe that is no longer there: nothing written, no success, the others untouched', async () => {
+  const { io, store, book } = await open();
+  const before = io.data.get(key);
+  let saved = 0;
+  assert.equal(await updateRecipeIn(store, { ...omelet, id: 'deleted', title: 'Правка' }, () => saved++), 'missing');
+  assert.equal(saved, 0);
+  assert.equal(io.data.get(key), before);
+  assert.deepEqual(io.log, []);
+  assert.deepEqual(book().recipes, [omelet, soup]);
+  assert.deepEqual(book().recipeMeta, meta);
+  // Deleted just before the edit is written (same queue): still refused, never re-created.
+  const deleting = store.update(current => ({ ...current, recipes: current.recipes.filter(r => r.id !== soup.id) }));
+  const editing = updateRecipeIn(store, { ...soup, title: 'Суп с лапшой' }, () => saved++);
+  assert.deepEqual([await deleting, await editing], [true, 'missing']);
+  assert.equal(saved, 0);
+  assert.deepEqual(book().recipes, [omelet]);
+});
+
+test('a failed edit is not reported as saved; Retry writes it once', async () => {
+  const { io, store, book } = await open();
+  io.failing.writes = 1;
+  let saved = 0;
+  assert.equal(await updateRecipeIn(store, { ...soup, time: 45 }, () => saved++), 'notSaved');
+  assert.equal(saved, 0);
+  assert.equal(await store.retry(), true);
+  assert.equal(saved, 1);
+  assert.equal(book().recipes.find(r => r.id === soup.id).time, 45);
 });
 
 test('a fresh id is tried when the first is taken; after three taken ids a controlled refusal', async () => {

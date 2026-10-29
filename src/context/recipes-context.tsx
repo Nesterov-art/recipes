@@ -20,7 +20,7 @@ import {
 } from '@/constants/recipes';
 import { emptyRecipeMeta } from '@/utils/recipes';
 import { mergeRecipeBackup, type RecipeBackup } from '@/utils/recipe-backup';
-import { type CreateOptions, type CreateResult, createRecipeIn } from '@/utils/recipe-create';
+import { type CreateOptions, type CreateResult, createRecipeIn, type UpdateResult, updateRecipeIn } from '@/utils/recipe-create';
 import { LEGACY_MIRRORS } from '@/utils/app-storage';
 import { bookConfig } from '@/utils/storage-models';
 import { useSafeStore } from '@/hooks/use-safe-store';
@@ -49,8 +49,8 @@ type RecipesContextValue = {
   importRecipes: (backup: RecipeBackup, onSaved?: (result: ReturnType<typeof mergeRecipeBackup>) => void) => Promise<ReturnType<typeof mergeRecipeBackup>>;
   // Only creates: a taken id is refused, never replaced (see recipe-create.ts).
   createRecipe: (recipe: Recipe, onSaved?: () => void, options?: CreateOptions) => Promise<CreateResult>;
-  // Only changes the recipe with this id.
-  updateRecipe: (recipe: Recipe, onSaved?: () => void) => Promise<boolean>;
+  // Only changes the recipe with this id, and only while it is still in the book.
+  updateRecipe: (recipe: Recipe, onSaved?: () => void) => Promise<UpdateResult>;
   deleteRecipe: (id: string, onSaved?: () => void) => Promise<boolean>;
   pickRandom: () => Recipe | null;
 };
@@ -148,9 +148,7 @@ export function RecipesProvider({ children }: PropsWithChildren) {
         return result;
       },
       createRecipe: (recipe, onSaved, options) => createRecipeIn(store, recipe, () => { showToast(t('recipeCreated')); onSaved?.(); }, options),
-      updateRecipe: (updated, onSaved) => store.update(current => ({
-        ...current, recipes: current.recipes.map(recipe => recipe.id === updated.id ? updated : recipe),
-      }), () => { showToast(t('recipeUpdated')); onSaved?.(); }),
+      updateRecipe: (updated, onSaved) => updateRecipeIn(store, updated, () => { showToast(t('recipeUpdated')); onSaved?.(); }),
       deleteRecipe: (id, onSaved) => store.update(current => {
         const next = { ...current.recipeMeta };
         delete next[id];
