@@ -229,6 +229,10 @@ test.describe('English', () => {
     const screen = page.getByTestId('backup-screen');
     await expect(button(page, 'Create backup')).toBeVisible();
     await expect(button(page, 'Restore from file')).toBeVisible();
+    for (const text of ['Backups are stored locally and are not synced automatically.', 'Last export: not yet',
+      'The file is not encrypted. Keep it in a safe place.', 'A full backup replaces your current data only after you confirm.']) {
+      await expect(screen.getByText(text, { exact: true })).toBeVisible();
+    }
     await page.getByTestId('recipe-file-input').setInputFiles({ name: 'copy.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({
       format: 'recipes-profile-backup', version: 1, exportedAt: '2026-10-21T09:00:00.000Z',
       profile: { recipes, recipeMeta: {}, shoppingItems: [], settings: { theme: 'dark', language: 'en', shoppingCompletedBehavior: 'keep' } },

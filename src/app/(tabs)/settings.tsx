@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { APP_ICONS } from '@/constants/app-icons';
 import type { Language } from '@/constants/i18n';
-import { MONOREC_THEMES, type ThemeMode } from '@/constants/theme';
+import { SETTINGS_THEMES, type ThemeMode } from '@/constants/theme';
 import {
   PaletteProvider,
   useSettings,
@@ -21,7 +21,7 @@ import { appVersion as getAppVersion } from '@/utils/app-version';
 type MenuKey = 'theme' | 'language' | 'shopping';
 
 export default function SettingsScreen() {
-  return <PaletteProvider palette={MONOREC_THEMES}><SettingsContent /></PaletteProvider>;
+  return <PaletteProvider palette={SETTINGS_THEMES}><SettingsContent /></PaletteProvider>;
 }
 
 function SettingsContent() {
@@ -68,7 +68,7 @@ function SettingsContent() {
   }
 
   return (
-    <View style={styles.screen}>
+    <View testID="settings-screen" style={styles.screen}>
       <ScrollView
         // The tab bar below already covers the bottom safe area.
         contentContainerStyle={{ paddingTop: insets.top + 24, paddingBottom: 24 }}

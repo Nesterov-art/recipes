@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Children, Fragment, type ComponentRef, type ReactNode, type Ref } from 'react';
-import { Pressable, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, Text, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { useSettings } from '@/context/settings-context';
 import { useStyles } from '@/styles';
@@ -32,6 +32,18 @@ export function SettingsSection({ title, footer, children }: { title: string; fo
       </Fragment>)}
     </View>}
     {footer}
+  </View>;
+}
+
+// Information that is read, not tapped: a card with an icon and one or more short lines.
+export function SettingsNote({ lines, icon = 'information-circle-outline', style }: { lines: string[]; icon?: IconName; style?: StyleProp<ViewStyle> }) {
+  const styles = useStyles();
+  const { colors } = useSettings();
+  return <View style={[styles.settingsNote, style]}>
+    <Ionicons name={icon} size={20} color={colors.muted} />
+    <View style={styles.settingsNoteBody}>
+      {lines.map(line => <Text key={line} style={styles.settingsNoteText}>{line}</Text>)}
+    </View>
   </View>;
 }
 

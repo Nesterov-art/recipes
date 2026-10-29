@@ -34,9 +34,7 @@ export function RecipeTransferContent() {
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
-  const [choosing, setChoosing] = useState(false);
   const [lastBackup, setLastBackup] = useState<string | null>(null);
-  const [largeExport, setLargeExport] = useState(false);
   const summary = preview?.mode === 'add' ? mergeRecipeBackup(recipes, recipeMeta, recipesFromBackup(preview.backup)) : null;
   const profile = preview?.backup.format === 'recipes-profile-backup' ? preview.backup.profile : null;
   const fs = (size: number) => Math.round(size * fontScale);
@@ -65,7 +63,6 @@ export function RecipeTransferContent() {
     try {
       await settleStores();
       const text = serializeProfileBackup((await captureAppProfile()).profile);
-      setLargeExport(utf8Length(text) > LARGE_PROFILE_BYTES);
       let result: ShareResult;
       if (target === 'folder') {
         const saved = await saveBackupToFolder(text, 'profile');
@@ -78,19 +75,15 @@ export function RecipeTransferContent() {
         const { message } = exportOutcome(result);
         if (message) showToast(t(message === 'handedOff' ? 'backupHandedOff' : 'backupSaved'));
       }
-      if (result !== 'cancelled') setChoosing(false);
       // Only a write known to have finished counts as the last export.
       if (exportOutcome(result).recordDate) await recordBackupDate();
     } catch (err) { report(err, 'create'); }
     finally { setBusy(false); working.current = false; }
   }
-  // Android saves one full backup to a folder or shares it; elsewhere the system share or
-  // download opens right away.
+  // One action: Android opens the system folder picker; iOS the share sheet (Save to Files)
+  // and the web a download, as before.
   function create() {
-    if (working.current) return;
-    setProblem(null);
-    if (canSaveToFolder) setChoosing(value => !value);
-    else void exportFile('share');
+    void exportFile(canSaveToFolder ? 'folder' : 'share');
   }
   function chooseFile() {
     if (working.current) return;
@@ -163,16 +156,9 @@ export function RecipeTransferContent() {
       <SettingsSection title={t('backupCreateTitle')} footer={<>
         {alert('create')}
         <SettingsHint>{t('profileLastBackup', { date: lastBackup && Number.isFinite(Date.parse(lastBackup)) ? new Date(lastBackup).toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US') : t('profileNever') })}</SettingsHint>
-        <SettingsHint>{t('profileHint')}</SettingsHint>
-        {canSaveToFolder && <SettingsHint>{t('saveToFolderHint')}</SettingsHint>}
-        {largeExport && <SettingsHint>{t('profileLarge')}</SettingsHint>}
+        <SettingsHint>{t('backupUnencrypted')}</SettingsHint>
       </>}>
-        <SettingsRow label={t('backupCreate')} icon="download-outline" onPress={create} disabled={busy}
-          accessory={canSaveToFolder ? 'menu' : undefined} expanded={canSaveToFolder ? choosing : undefined} />
-        {canSaveToFolder && choosing && [
-          <SettingsRow key="folder" label={t('saveToFolder')} spokenLabel={t('saveBackupToFolder')} icon="folder-outline" onPress={() => void exportFile('folder')} disabled={busy} />,
-          <SettingsRow key="share" label={t('share')} spokenLabel={t('shareBackup')} icon="share-outline" onPress={() => void exportFile('share')} disabled={busy} />,
-        ]}
+        <SettingsRow label={t('backupCreate')} icon="download-outline" onPress={create} disabled={busy} />
       </SettingsSection>
     </View>
     <View testID="backup-restore-section">

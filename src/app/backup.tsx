@@ -4,13 +4,14 @@ import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RecipeTransfer } from '@/components/recipe-transfer';
-import { MONOREC_THEMES } from '@/constants/theme';
+import { SettingsNote } from '@/components/settings-list';
+import { SETTINGS_THEMES } from '@/constants/theme';
 import { PaletteProvider, useSettings } from '@/context/settings-context';
 import { useFittedTitle } from '@/hooks/use-fitted-title';
 import { useStyles } from '@/styles';
 
 export default function BackupScreen() {
-  return <PaletteProvider palette={MONOREC_THEMES}><BackupContent /></PaletteProvider>;
+  return <PaletteProvider palette={SETTINGS_THEMES}><BackupContent /></PaletteProvider>;
 }
 
 // The one entry to backups, opened from Settings. The file operations are the
@@ -49,17 +50,9 @@ function BackupContent() {
           <Text style={styles.choiceKicker}>{t('backupKicker')}</Text>
           <Text accessibilityRole="header" style={[styles.recipeTitle, titleStyle]}>{t('backups')}</Text>
 
-          <View style={styles.backupInfo}>
-            <Ionicons name="information-circle-outline" size={20} color={colors.muted} />
-            <Text style={styles.backupInfoText}>{t('backupInfo')}</Text>
-          </View>
+          <SettingsNote lines={[t('backupInfo')]} style={styles.settingsLead} />
 
           <RecipeTransfer />
-
-          <View style={styles.restoreWarning}>
-            <Text style={styles.restoreWarningTitle}>{t('restoreWarningTitle')}</Text>
-            <Text style={styles.restoreWarningText}>{t('restoreWarningText')}</Text>
-          </View>
         </View>
       </ScrollView>
     </View>

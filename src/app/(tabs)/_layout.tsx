@@ -6,7 +6,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { ViewRef } from '@/components/settings-list';
-import { MONOREC_THEMES } from '@/constants/theme';
+import { MONOREC_THEMES, SETTINGS_THEMES } from '@/constants/theme';
 import { PaletteProvider, useSettings } from '@/context/settings-context';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -65,7 +65,8 @@ export default function TabsLayout() {
 }
 
 function MonorecTabs() {
-  const { colors, t } = useSettings();
+  const { colors, resolvedTheme, t } = useSettings();
+  const surface = (route: string) => route === 'settings' ? SETTINGS_THEMES[resolvedTheme] : colors;
   const insets = useSafeAreaInsets();
   const keyboardOpen = useWebKeyboardOpen();
   // iOS standalone web apps already constrain the root above the Home
@@ -84,7 +85,9 @@ function MonorecTabs() {
     <Tabs
       safeAreaInsets={{ bottom: bottomInset }}
       backBehavior="history"
-      screenOptions={{
+      // Settings sits on its own grey palette; the bar takes that surface on that tab only,
+      // so the screen and the bar meet without a seam. Icon and label colours stay the same.
+      screenOptions={({ route }) => ({
         headerShown: false,
         tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: colors.text,
@@ -99,15 +102,15 @@ function MonorecTabs() {
             height: TAB_BAR_HEIGHT + bottomInset,
             paddingTop: 4,
             paddingBottom: bottomInset,
-            backgroundColor: colors.bg,
-            borderTopColor: colors.separator,
+            backgroundColor: surface(route.name).bg,
+            borderTopColor: surface(route.name).separator,
             borderTopWidth: StyleSheet.hairlineWidth,
             elevation: 0,
           },
           keyboardOpen && { display: 'none' },
         ],
-        sceneStyle: { backgroundColor: colors.bg },
-      }}
+        sceneStyle: { backgroundColor: surface(route.name).bg },
+      })}
       screenLayout={({ children }) => <TabScene>{children}</TabScene>}
     >
       <Tabs.Screen name="index" options={{ title: t('tabChoice'), tabBarAccessibilityLabel: t('tabChoice'), tabBarIcon: icon('shuffle-outline', 'shuffle') }} />

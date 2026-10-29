@@ -43,3 +43,19 @@ export const MONOREC_THEMES: Record<ResolvedThemeMode, AppColors> = {
     danger: '#B42318', success: '#246B45', secondaryBorder: 'rgba(0,0,0,0.08)', fadeEnd: 'rgba(245,244,240,0.96)',
   },
 };
+
+// Settings, Backups and About: neutral grey screens under white (or raised dark) cards, so
+// each group reads as a card without borders or shadows. Accent and status colours stay
+// Monorec's. Light muted is #6B6B6B rather than #737373 to keep 4.5:1 on the grey screen.
+export const SETTINGS_THEMES: Record<ResolvedThemeMode, AppColors> = {
+  dark: {
+    ...MONOREC_THEMES.dark,
+    bg: '#191919', card: '#272727', cardPressed: '#333333', separator: '#404040',
+    text: '#FAFAFA', muted: '#A1A1A1', fadeEnd: 'rgba(25,25,25,0.94)',
+  },
+  light: {
+    ...MONOREC_THEMES.light,
+    bg: '#F2F2F2', card: '#FFFFFF', cardPressed: '#EBEBEB', separator: '#E8E8E8',
+    text: '#171717', muted: '#6B6B6B', fadeEnd: 'rgba(242,242,242,0.96)',
+  },
+};

@@ -73,6 +73,34 @@ test('keyboard opens the menu, focuses the current option and selects another on
   await expect.poll(async () => JSON.parse((await savedSettings(page))!).theme).toBe('dark');
 });
 
+// The tab bar takes the Settings surface on that tab only; other tabs keep theirs.
+// The first painted ancestor of a tab button is the bar itself.
+const barColor = (page: Page) => page.getByRole('tab', { name: /^(Настройки|Settings)$/ }).evaluate(element => {
+  for (let node: Element | null = element; node; node = node.parentElement) {
+    const color = getComputedStyle(node).backgroundColor;
+    if (color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent') return color;
+  }
+  return null;
+});
+for (const [theme, settings, others] of [['light', 'rgb(242, 242, 242)', 'rgb(245, 244, 240)'], ['dark', 'rgb(25, 25, 25)', 'rgb(11, 11, 12)']] as const) {
+  test.describe(`tab bar, ${theme}`, () => {
+    test.use({ seedSettings: { theme, language: 'ru', shoppingCompletedBehavior: 'moveDown' } });
+    test('matches the Settings screen only while Settings is open', async ({ page }) => {
+      await openHome(page);
+      await expect.poll(() => barColor(page)).toBe(others);
+      await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
+      await expect(settingRow(page, 'Оформление')).toBeVisible();
+      await expect.poll(() => barColor(page)).toBe(settings);
+      await expect(page.getByTestId('settings-screen')).toHaveCSS('background-color', settings);
+      for (const tab of ['Покупки', 'Выбор', 'Рецепты']) {
+        await page.getByRole('tab', { name: tab, exact: true }).click();
+        await expect(page.getByRole('tab', { name: tab, exact: true })).toHaveAttribute('aria-selected', 'true');
+        await expect.poll(() => barColor(page)).toBe(others);
+      }
+    });
+  });
+}
+
 test('system theme is stored as system and follows the device appearance', async ({ page }) => {
   await openSettings(page);
   await chooseSetting(page, 'Оформление', 'Как в системе');
@@ -80,7 +108,8 @@ test('system theme is stored as system and follows the device appearance', async
   const card = settingRow(page, 'Оформление');
   const background = () => card.evaluate(element => getComputedStyle(element).backgroundColor);
   await page.emulateMedia({ colorScheme: 'dark' });
-  await expect.poll(background).toBe('rgb(28, 28, 30)');
+  // Settings cards: #272727 dark, #FFFFFF light (SETTINGS_THEMES).
+  await expect.poll(background).toBe('rgb(39, 39, 39)');
   await page.emulateMedia({ colorScheme: 'light' });
   await expect.poll(background).toBe('rgb(255, 255, 255)');
   expect(JSON.parse((await savedSettings(page))!).theme).toBe('system');
@@ -145,7 +174,17 @@ test('sections follow the design and Backups opens one tap from Settings', async
   for (const name of ['Создать резервную копию', 'Восстановить из файла']) {
     await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
   }
-  await expect(page.getByText('Перед восстановлением', { exact: true })).toBeVisible();
+  // One action per section and only the short notes; the folder/share menu is gone.
+  const screen = page.getByTestId('backup-screen');
+  for (const text of ['Копии хранятся локально и не синхронизируются автоматически.', 'Последняя выгрузка: ещё не было',
+    'Файл не зашифрован. Храни его в безопасном месте.', 'Полная резервная копия заменит текущие данные только после подтверждения.']) {
+    await expect(screen.getByText(text, { exact: true })).toBeVisible();
+  }
+  for (const gone of ['Поделиться', 'Сохранить в папку']) await expect(screen.getByRole('button', { name: gone, exact: true })).toHaveCount(0);
+  await expect(screen.locator('[aria-expanded]')).toHaveCount(0);
+  for (const gone of ['Перед восстановлением', /для переноса на другое устройство/, /Большой файл/, /Подходит полная резервная копия/]) {
+    await expect(screen.getByText(gone)).toHaveCount(0);
+  }
   await page.getByRole('button', { name: 'Назад', exact: true }).click();
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole('tab', { name: 'Настройки', exact: true })).toHaveAttribute('aria-selected', 'true');

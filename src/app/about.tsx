@@ -4,15 +4,15 @@ import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { APP_ICONS } from '@/constants/app-icons';
-import { MONOREC_THEMES } from '@/constants/theme';
+import { SETTINGS_THEMES } from '@/constants/theme';
 import { PaletteProvider, useSettings } from '@/context/settings-context';
-import { SettingsHint, SettingsRow, SettingsSection } from '@/components/settings-list';
+import { SettingsNote, SettingsRow, SettingsSection } from '@/components/settings-list';
 import { useStyles } from '@/styles';
 import { appUpdateId, appVersion as getAppVersion } from '@/utils/app-version';
 import { openFeedback } from '@/utils/feedback';
 
 export default function AboutScreen() {
-  return <PaletteProvider palette={MONOREC_THEMES}><AboutContent /></PaletteProvider>;
+  return <PaletteProvider palette={SETTINGS_THEMES}><AboutContent /></PaletteProvider>;
 }
 
 function AboutContent() {
@@ -65,13 +65,7 @@ function AboutContent() {
           </SettingsSection>
 
           {/* Local storage only: no sync and no automatic backup. Backups have one entry, in Settings. */}
-          <SettingsSection
-            title={t('aboutData')}
-            footer={<>
-              <SettingsHint>{t('aboutStorage')}</SettingsHint>
-              <SettingsHint>{t('aboutBackupHint')}</SettingsHint>
-            </>}
-          />
+          <SettingsSection title={t('aboutData')} footer={<SettingsNote icon="phone-portrait-outline" lines={[t('aboutStorage'), t('aboutBackupHint')]} />} />
         </View>
       </ScrollView>
     </View>

@@ -168,11 +168,12 @@ function createStyles(COLORS: AppColors, fontScale: number) {
   settingsTitle: { fontSize: fs(34), lineHeight: fs(40), fontWeight: '700', color: COLORS.text },
   settingLabel: { fontSize: fs(12), lineHeight: fs(16), fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', color: COLORS.muted, marginTop: 24, marginBottom: 10 },
   settingsTitleBlock: { gap: 8 },
-  backupInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 20, padding: 16, borderRadius: 20, backgroundColor: COLORS.card },
-  backupInfoText: { flex: 1, fontSize: fs(15), lineHeight: fs(21), color: COLORS.muted },
-  restoreWarning: { marginTop: 24, paddingLeft: 14, paddingVertical: 4, borderLeftWidth: 3, borderLeftColor: COLORS.danger, gap: 6 },
-  restoreWarningTitle: { fontSize: fs(15), lineHeight: fs(20), fontWeight: '700', color: COLORS.text },
-  restoreWarningText: { fontSize: fs(15), lineHeight: fs(21), color: COLORS.muted },
+  // The icon sits on the same axis as settings row icons (16 padding + 24 slot).
+  settingsNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingVertical: 14, paddingLeft: 18, paddingRight: 16, borderRadius: 24, backgroundColor: COLORS.card },
+  settingsNoteBody: { flex: 1, gap: 8 },
+  settingsNoteText: { fontSize: fs(15), lineHeight: fs(21), color: COLORS.muted },
+  // A note right under a screen title, before the first section.
+  settingsLead: { marginTop: 20 },
   settingsHint: { fontSize: fs(15), lineHeight: fs(20), color: COLORS.muted, marginTop: 8 },
   settingsCard: { backgroundColor: COLORS.card, borderRadius: 24, overflow: 'hidden' },
   settingsRow: {

@@ -53,7 +53,7 @@ test('About explains local storage and points to Settings for backups without a 
 
 test.describe('English, dark theme', () => {
   test.use({ seedSettings: { theme: 'dark', language: 'en', shoppingCompletedBehavior: 'moveDown' } });
-  test('About is translated and uses the dark Monorec palette', async ({ page }) => {
+  test('About is translated and uses the dark settings palette', async ({ page }) => {
     await page.goto('/settings');
     await page.getByRole('button', { name: 'About Monorec', exact: true }).click();
     const screen = about(page);
@@ -63,16 +63,17 @@ test.describe('English, dark theme', () => {
     const developer = screen.getByLabel('Neyroshi, App developer', { exact: true });
     await expect(developer).toBeVisible();
     await expect(screen.getByRole('link', { name: 'Feedback', exact: true })).toBeVisible();
-    await expect.poll(() => developer.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(28, 28, 30)');
-    await expect.poll(() => screen.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(11, 11, 12)');
+    // SETTINGS_THEMES.dark: card #272727 on #191919.
+    await expect.poll(() => developer.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(39, 39, 39)');
+    await expect.poll(() => screen.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(25, 25, 25)');
     await screen.getByRole('button', { name: 'Back', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
   });
 });
 
-test('About follows the light Monorec palette', async ({ page }) => {
+test('About follows the light settings palette', async ({ page }) => {
   await openAbout(page);
-  await expect.poll(() => about(page).evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(245, 244, 240)');
+  await expect.poll(() => about(page).evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(242, 242, 242)');
 });
 
 test.describe('narrow screen with large text', () => {
