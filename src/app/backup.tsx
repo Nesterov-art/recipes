@@ -1,3 +1,4 @@
+import { AccentHeading } from '@/components/accent-heading';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
@@ -48,7 +49,7 @@ function BackupContent() {
             </Pressable>
           </View>
           <Text style={styles.choiceKicker}>{t('backupKicker')}</Text>
-          <Text accessibilityRole="header" style={[styles.recipeTitle, titleStyle]}>{t('backups')}</Text>
+          <AccentHeading style={[styles.recipeTitle, titleStyle]}>{t('backups')}</AccentHeading>
 
           <SettingsNote lines={[t('backupInfo')]} style={styles.settingsLead} />
 

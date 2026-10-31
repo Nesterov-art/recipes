@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
@@ -188,7 +187,6 @@ function OnboardingContent() {
               <Text style={{ color: colors.accentText, fontSize: fs(17), lineHeight: fs(22), fontWeight: '700', flexShrink: 1, textAlign: 'center' }}>
                 {t(last ? 'onboardingStart' : 'onboardingNext')}
               </Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.accentText} />
             </Pressable>
           </Animated.View>
           {/* "Skip" as in the design; "Back" stays available from the second screen on. */}

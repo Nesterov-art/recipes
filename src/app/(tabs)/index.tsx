@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ArtCard, ChooseWhatToCookArt, OrbitArt, useArt } from '@/components/choice-art';
+import { AccentHeading } from '@/components/accent-heading';
+import { ArtCard, ChooseWhatToCookArt, OrbitArt, WelcomeOrbitArt, useArt } from '@/components/choice-art';
 import { MONOREC_THEMES } from '@/constants/theme';
 import { useRecipes } from '@/context/recipes-context';
 import { PaletteProvider, useSettings } from '@/context/settings-context';
@@ -26,7 +27,7 @@ function ChoiceContent() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const navigation = useNavigation();
-  const { colors, t } = useSettings();
+  const { colors, resolvedTheme, t } = useSettings();
   const styles = useStyles();
   const art = useArt();
   const { recipes, recipeMeta } = useRecipes();
@@ -77,7 +78,7 @@ function ChoiceContent() {
   const header = (kicker: string, title: string, lede: string) => (
     <View>
       <Text style={styles.choiceKicker}>{kicker}</Text>
-      <Text accessibilityRole="header" style={[styles.choiceTitle, titleStyle]}>{title}</Text>
+      <AccentHeading style={[styles.choiceTitle, titleStyle]}>{title}</AccentHeading>
       <Text style={styles.choiceLede}>{lede}</Text>
     </View>
   );
@@ -165,13 +166,13 @@ function ChoiceContent() {
   } else {
     body = (
       <>
-        {header(t('choiceKicker'), t('choiceTitle'), t('choiceLede'))}
-        <ArtCard style={styles.choiceCard}>
-          {cardTop(t('choiceInspiration'))}
-          <OrbitArt height={220} />
-          <View style={styles.choiceCardCopy}>
-            <Text style={[styles.choiceCardTitle, { color: art.text }]}>{t('choiceIdeaTitle')}</Text>
-            <Text style={[styles.choiceCardText, { color: art.muted }]}>{t('choiceIdeaText')}</Text>
+        <AccentHeading style={[styles.choiceTitle, titleStyle, styles.choiceWelcomeTitle]}>{t('choiceTitle')}</AccentHeading>
+        <ArtCard style={styles.choiceWelcomeCard}>
+          <WelcomeOrbitArt width={Math.min(width, 560) - 32} />
+          <View style={styles.choiceWelcomeCopy}>
+            <View style={styles.choiceWelcomeMark} accessibilityElementsHidden aria-hidden />
+            <Text style={styles.choiceCardTitle}>{t('choiceIdeaTitle')}</Text>
+            <Text style={[styles.choiceWelcomeDetail, resolvedTheme === 'dark' && { color: '#F5A66A' }]}>{t('choiceIdeaText')}</Text>
           </View>
         </ArtCard>
         <View style={styles.choiceActions}>
@@ -184,7 +185,6 @@ function ChoiceContent() {
             <Text style={styles.choicePrimaryText}>{t('chooseDish')}</Text>
           </Pressable>
         </View>
-        <Text style={styles.choiceNote}>{t('choiceWelcomeNote')}</Text>
       </>
     );
   }

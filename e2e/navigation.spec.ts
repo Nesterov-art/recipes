@@ -16,7 +16,7 @@ test('the app opens on Choice and every tab has its own address', async ({ page 
   for (const name of TABS) await expect(tab(page, name)).toBeVisible();
   await expect(tab(page, 'Выбор')).toHaveAttribute('aria-selected', 'true');
   for (const [name, path, heading] of [
-    ['Рецепты', '/recipes', 'Monorec'],
+    ['Рецепты', '/recipes', 'monorec'],
     ['Покупки', '/shopping', 'Список покупок'],
     ['Настройки', '/settings', 'Настройки'],
     ['Выбор', '/', 'Что приготовим?'],
@@ -109,6 +109,13 @@ test('controls of hidden tabs cannot take keyboard focus', async ({ page }) => {
   await page.goto('/recipes');
   await tab(page, 'Настройки').click();
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-  await page.keyboard.press('Tab');
+  // Browsers may retain the last clicked tab as their sequential focus start.
+  // Walk the visible cycle, proving hidden tab controls never receive focus.
+  const appearance = page.getByRole('button', { name: /^Оформление: / });
+  for (let step = 0; step < 12; step++) {
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => !!document.activeElement?.closest('[inert]'))).toBe(false);
+    if (await appearance.evaluate(element => element === document.activeElement)) break;
+  }
   await expect(page.getByRole('button', { name: /^Оформление: / })).toBeFocused();
 });

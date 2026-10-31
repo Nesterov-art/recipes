@@ -1,3 +1,4 @@
+import { AccentHeading } from '@/components/accent-heading';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
@@ -127,7 +128,7 @@ function HistoryContent() {
         </Pressable>
       </View>
       <Text style={styles.choiceKicker}>{recipe ? t('cookingHistory') : t('historyKicker')}</Text>
-      <Text accessibilityRole="header" style={[styles.recipeTitle, titleStyle]}>{heading}</Text>
+      <AccentHeading style={[styles.recipeTitle, titleStyle]}>{heading}</AccentHeading>
 
       {entries.length > 0 && (
         <View style={styles.historySummary}>

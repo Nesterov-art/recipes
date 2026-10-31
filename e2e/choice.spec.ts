@@ -16,7 +16,7 @@ async function openChoice(page: Page) {
 test('the welcome comes first and nothing is picked until the button is pressed', async ({ page }) => {
   await openChoice(page);
   await expect(page.getByRole('heading', { name: 'Что приготовим?', exact: true })).toBeVisible();
-  await expect(page.getByText('Давай найдём идею.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Давай найдём идею', { exact: true })).toBeVisible();
   await expect(result(page)).toHaveCount(0);
   for (const title of titles) await expect(page.getByText(title, { exact: true })).toHaveCount(0);
 });

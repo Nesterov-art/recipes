@@ -1,3 +1,4 @@
+import { AccentHeading } from '@/components/accent-heading';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -59,7 +60,7 @@ function RecipesContent() {
     <View>
       <View style={styles.homeHeader}>
         <View style={styles.homeHeaderText}>
-          <Text accessibilityRole="header" style={styles.homeTitle}>Monorec</Text>
+          <AccentHeading style={styles.homeTitle}>monorec</AccentHeading>
           <Text style={styles.homeDate}>{todayLabel(language)}</Text>
         </View>
         <View style={styles.homeActions}>

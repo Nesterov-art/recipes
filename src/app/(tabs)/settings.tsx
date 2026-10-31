@@ -1,3 +1,4 @@
+import { AccentHeading } from '@/components/accent-heading';
 import { router } from 'expo-router';
 import { useRef, useState, type RefObject } from 'react';
 import { Image, ScrollView, Text, View } from 'react-native';
@@ -76,11 +77,11 @@ function SettingsContent() {
       >
         <View style={styles.settingsContent}>
           <View style={styles.settingsTitleBlock}>
-            <Text style={styles.choiceKicker}>{t('settingsKicker')}</Text>
-            <Text accessibilityRole="header" style={styles.settingsTitle}>{t('settings')}</Text>
+            <AccentHeading style={styles.settingsTitle}>{t('settings')}</AccentHeading>
           </View>
 
-          <SettingsSection title={t('preferences')}>
+          <View testID="settings-groups" style={styles.settingsGroups}>
+          <SettingsSection title={t('preferences')} hideTitle>
             <SettingsRow
               ref={themeRow}
               icon="moon-outline"
@@ -101,7 +102,7 @@ function SettingsContent() {
             />
           </SettingsSection>
 
-          <SettingsSection title={t('shoppingBehavior')}>
+          <SettingsSection title={t('shoppingBehavior')} hideTitle>
             <SettingsRow
               ref={shoppingRow}
               icon="checkmark"
@@ -114,7 +115,7 @@ function SettingsContent() {
           </SettingsSection>
 
           {/* Backups open their own screen, one tap from Settings (design 3.1, screen 19). */}
-          <SettingsSection title={t('dataSection')}>
+          <SettingsSection title={t('dataSection')} hideTitle>
             <SettingsRow
               icon="document-text-outline"
               label={t('backups')}
@@ -123,7 +124,7 @@ function SettingsContent() {
             />
           </SettingsSection>
 
-          <SettingsSection title={t('appSection')}>
+          <SettingsSection title={t('appSection')} hideTitle>
             {/* Replaying shows the introduction again; recipes, groceries, history and settings stay. */}
             <SettingsRow
               icon="book-outline"
@@ -138,6 +139,8 @@ function SettingsContent() {
               onPress={() => router.push('/about')}
             />
           </SettingsSection>
+
+          </View>
 
           <View style={styles.settingsFooter}>
             <Image

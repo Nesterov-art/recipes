@@ -14,7 +14,7 @@ test.describe('empty collection', () => {
   test.use({ seedRecipes: [] });
   test('explains the empty book and offers the existing add-recipe flow', async ({ page }) => {
     await openHome(page);
-    await expect(page.getByRole('heading', { name: 'Monorec', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'monorec', exact: true })).toBeVisible();
     await expect(page.getByText('Пока нет рецептов', { exact: true })).toBeVisible();
     await expect(cards(page)).toHaveCount(0);
     await page.getByRole('button', { name: 'Добавить первый рецепт', exact: true }).click();
@@ -100,11 +100,11 @@ test.describe('English, dark theme', () => {
   test.use({ seedSettings: { theme: 'dark', language: 'en', shoppingCompletedBehavior: 'moveDown' } });
   test('home is translated and uses the dark Monorec palette', async ({ page }) => {
     await page.goto('/recipes');
-    await expect(page.getByRole('heading', { name: 'Monorec', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'monorec', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'All recipes', exact: true })).toBeVisible();
     const card = page.getByRole('button', { name: 'Open recipe Омлет с сыром', exact: true });
     await expect(card).toContainText('2 ingredients');
-    await expect.poll(() => card.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(28, 28, 30)');
+    await expect.poll(() => card.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(32, 32, 34)');
     await page.getByRole('button', { name: 'Favorites', exact: true }).click();
     await expect(page.getByText('No recipes in this filter', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Show all', exact: true })).toBeVisible();
@@ -173,7 +173,7 @@ test.describe('narrow screen with large text', () => {
     await expect(card).toContainText('Завтрак · 2 ингредиента · 10 мин');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     // The app name never breaks inside the word.
-    const heading = page.getByRole('heading', { name: 'Monorec', exact: true });
+    const heading = page.getByRole('heading', { name: 'monorec', exact: true });
     const headingLine = await heading.evaluate(element => parseFloat(getComputedStyle(element).lineHeight));
     expect((await heading.boundingBox())!.height).toBeLessThanOrEqual(headingLine + 1);
     for (const target of [

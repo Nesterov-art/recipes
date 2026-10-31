@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Children, Fragment, type ComponentRef, type ReactNode, type Ref } from 'react';
-import { Pressable, Text, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { useSettings } from '@/context/settings-context';
 import { useStyles } from '@/styles';
@@ -20,11 +20,11 @@ const ACCESSORY_ICONS: Record<Accessory, IconName> = {
 const STACKED_FONT_SCALE = 1.35;
 
 // A section without rows shows only its title and footer text.
-export function SettingsSection({ title, footer, children }: { title: string; footer?: ReactNode; children?: ReactNode }) {
+export function SettingsSection({ title, hideTitle = false, footer, children }: { title?: string; hideTitle?: boolean; footer?: ReactNode; children?: ReactNode }) {
   const styles = useStyles();
   const rows = Children.toArray(children);
   return <View>
-    <Text accessibilityRole="header" style={styles.settingLabel}>{title}</Text>
+    {title && <Text accessibilityRole="header" style={hideTitle ? sectionStyles.spokenTitle : styles.settingLabel}>{title}</Text>}
     {rows.length > 0 && <View style={styles.settingsCard}>
       {rows.map((row, index) => <Fragment key={index}>
         {index > 0 && <View style={styles.settingsSeparator} />}
@@ -34,6 +34,12 @@ export function SettingsSection({ title, footer, children }: { title: string; fo
     {footer}
   </View>;
 }
+
+// Retain screen-reader section navigation without adding visible labels or
+// combining the interactive rows into one native accessibility element.
+const sectionStyles = StyleSheet.create({
+  spokenTitle: { position: 'absolute', width: 1, height: 1, overflow: 'hidden' },
+});
 
 // Information that is read, not tapped: a card with an icon and one or more short lines.
 export function SettingsNote({ lines, icon = 'information-circle-outline', style }: { lines: string[]; icon?: IconName; style?: StyleProp<ViewStyle> }) {

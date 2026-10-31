@@ -1,4 +1,5 @@
 import { type PropsWithChildren } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 
@@ -50,6 +51,31 @@ export function OrbitArt({ height }: { height: number }) {
       <SvgXml xml={resolvedTheme === 'dark' ? choiceOrbit : choiceOrbitLight} width={(height * 559) / 531} height={height} />
     </View>
   );
+}
+
+// Temporary approved monochrome treatment, computed once. Only colour values
+// change at render time; delivered SVGs, geometry and other illustrations stay intact.
+const monochromeOrbit = [choiceOrbit, choiceOrbitLight].map(xml => xml.replace(/#[\da-f]{6}\b/gi, hex => {
+  const gray = Math.round(0.2126 * parseInt(hex.slice(1, 3), 16)
+    + 0.7152 * parseInt(hex.slice(3, 5), 16) + 0.0722 * parseInt(hex.slice(5, 7), 16));
+  return `#${gray.toString(16).padStart(2, '0').repeat(3)}`;
+}));
+
+/** Full-width welcome art, dissolving into the card rather than a nested panel. */
+export function WelcomeOrbitArt({ width }: { width: number }) {
+  const { colors, resolvedTheme } = useSettings();
+  const height = Math.min(364, width + 12);
+  const hex = colors.card;
+  const rgb = [1, 3, 5].map(offset => parseInt(hex.slice(offset, offset + 2), 16)).join(',');
+  return <View style={{ height }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" aria-hidden>
+    <SvgXml xml={monochromeOrbit[resolvedTheme === 'dark' ? 0 : 1]} width="100%" height={height} />
+    <LinearGradient
+      pointerEvents="none"
+      colors={[`rgba(${rgb},0)`, `rgba(${rgb},0.3)`, `rgba(${rgb},0.8)`, colors.card]}
+      locations={[0, 0.28, 0.65, 1]}
+      style={{ position: 'absolute', top: '58%', bottom: 0, left: 0, right: 0 }}
+    />
+  </View>;
 }
 
 /**

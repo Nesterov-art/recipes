@@ -64,8 +64,8 @@ test.describe('English, dark theme', () => {
     await expect(developer).toBeVisible();
     await expect(screen.getByRole('link', { name: 'Feedback', exact: true })).toBeVisible();
     // SETTINGS_THEMES.dark: card #272727 on #191919.
-    await expect.poll(() => developer.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(39, 39, 39)');
-    await expect.poll(() => screen.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(25, 25, 25)');
+    await expect.poll(() => developer.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(32, 32, 34)');
+    await expect.poll(() => screen.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(11, 11, 12)');
     await screen.getByRole('button', { name: 'Back', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
   });

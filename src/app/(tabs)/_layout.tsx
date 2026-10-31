@@ -1,17 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from 'expo-router';
-import { Tabs } from 'expo-router/js-tabs';
+import { Tabs, type BottomTabNavigationOptions } from 'expo-router/js-tabs';
 import { useEffect, useRef, useState, type ComponentProps, type PropsWithChildren } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { ViewRef } from '@/components/settings-list';
-import { MONOREC_THEMES, SETTINGS_THEMES } from '@/constants/theme';
+import { MONOREC_THEMES } from '@/constants/theme';
+import { MonorecTabBar } from '@/components/monorec-tab-bar';
 import { PaletteProvider, useSettings } from '@/context/settings-context';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
-
-const TAB_BAR_HEIGHT = 60;
 
 // Browsers keep the tab bar above the on-screen keyboard while a field is being
 // edited. Hide it then, as Android does natively with tabBarHideOnKeyboard. The
@@ -65,8 +64,7 @@ export default function TabsLayout() {
 }
 
 function MonorecTabs() {
-  const { colors, resolvedTheme, t } = useSettings();
-  const surface = (route: string) => route === 'settings' ? SETTINGS_THEMES[resolvedTheme] : colors;
+  const { colors, t } = useSettings();
   const insets = useSafeAreaInsets();
   const keyboardOpen = useWebKeyboardOpen();
   // iOS standalone web apps already constrain the root above the Home
@@ -75,8 +73,8 @@ function MonorecTabs() {
 
   // The selected tab differs by a filled icon as well as by colour.
   const icon = (outline: IconName, filled: IconName) => {
-    function TabIcon({ focused }: { focused: boolean }) {
-      return <Ionicons name={focused ? filled : outline} size={24} color={focused ? colors.text : colors.muted} />;
+    function TabIcon({ focused, color, size }: Parameters<NonNullable<BottomTabNavigationOptions['tabBarIcon']>>[0]) {
+      return <Ionicons name={focused ? filled : outline} size={size} color={typeof color === 'number' ? colors.text : color ?? colors.muted} />;
     }
     return TabIcon;
   };
@@ -85,9 +83,8 @@ function MonorecTabs() {
     <Tabs
       safeAreaInsets={{ bottom: bottomInset }}
       backBehavior="history"
-      // Settings sits on its own grey palette; the bar takes that surface on that tab only,
-      // so the screen and the bar meet without a seam. Icon and label colours stay the same.
-      screenOptions={({ route }) => ({
+      tabBar={props => <MonorecTabBar {...props} webKeyboardOpen={keyboardOpen} />}
+      screenOptions={{
         headerShown: false,
         tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: colors.text,
@@ -95,22 +92,9 @@ function MonorecTabs() {
         // Like the system iOS tab bar, labels keep their size with large text.
         tabBarAllowFontScaling: false,
         tabBarLabelStyle: { fontSize: 11, lineHeight: 14, fontWeight: '600' },
-        tabBarStyle: [
-          {
-            // Each item adds 5 + 5 padding around a 28 icon slot and the 14 label;
-            // the default height leaves the label 5 px and clips it on the web.
-            height: TAB_BAR_HEIGHT + bottomInset,
-            paddingTop: 4,
-            paddingBottom: bottomInset,
-            backgroundColor: surface(route.name).bg,
-            borderTopColor: surface(route.name).separator,
-            borderTopWidth: StyleSheet.hairlineWidth,
-            elevation: 0,
-          },
-          keyboardOpen && { display: 'none' },
-        ],
-        sceneStyle: { backgroundColor: surface(route.name).bg },
-      })}
+        tabBarStyle: { height: 80 + Math.max(bottomInset, 8) },
+        sceneStyle: { backgroundColor: colors.bg },
+      }}
       screenLayout={({ children }) => <TabScene>{children}</TabScene>}
     >
       <Tabs.Screen name="index" options={{ title: t('tabChoice'), tabBarAccessibilityLabel: t('tabChoice'), tabBarIcon: icon('shuffle-outline', 'shuffle') }} />

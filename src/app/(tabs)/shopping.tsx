@@ -1,3 +1,4 @@
+import { AccentHeading } from '@/components/accent-heading';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -227,7 +228,7 @@ function ShoppingContent() {
   // same height, which the drag needs to move the other cards without jumps.
   const header = (
     <View style={styles.shoppingHeader}>
-      <Text accessibilityRole="header" style={styles.settingsTitle}>{t('shoppingList')}</Text>
+      <AccentHeading style={styles.settingsTitle}>{t('shoppingList')}</AccentHeading>
       <View style={styles.shoppingInputRow}>
         <TextInput
           value={value}

@@ -13,7 +13,7 @@ async function containerStyle(page: import('@playwright/test').Page, index: numb
   });
 }
 
-for (const [theme, page_, card] of [['light', 'rgb(245, 244, 240)', 'rgb(255, 255, 255)'], ['dark', 'rgb(11, 11, 12)', 'rgb(28, 28, 30)']] as const) {
+for (const [theme, page_, card] of [['light', 'rgb(242, 242, 242)', 'rgb(255, 255, 255)'], ['dark', 'rgb(11, 11, 12)', 'rgb(32, 32, 34)']] as const) {
   test.describe(`separate cards, ${theme}`, () => {
     test.use({ seedShopping: [shopping, { scope: 'test' }], seedSettings: { theme, language: 'ru', shoppingCompletedBehavior: 'moveDown' } });
     test('each product is a compact rounded card on the Monorec palette', async ({ page }) => {

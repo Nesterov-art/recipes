@@ -1,3 +1,4 @@
+import { AccentHeading } from '@/components/accent-heading';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -186,7 +187,7 @@ function FormContent({ imported }: { imported: (ImportedDraft & { key: string })
             </Text>
           </View>
 
-          <Text accessibilityRole="header" style={[styles.recipeTitle, titleStyle]}>{heading}</Text>
+          <AccentHeading style={[styles.recipeTitle, titleStyle]}>{heading}</AccentHeading>
           {imported && <Text style={[styles.settingsHint, { marginTop: 4 }]}>{t('importFormHint', { host: imported.host })}</Text>}
 
           {label(t('title'))}

@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { FlatList, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AccentHeading } from '@/components/accent-heading';
 import { MONOREC_THEMES } from '@/constants/theme';
 import { useRecipes } from '@/context/recipes-context';
 import { PaletteProvider, useSettings } from '@/context/settings-context';
@@ -107,7 +108,7 @@ function ShoppingMatchesContent() {
                 <Ionicons name="chevron-back" size={24} color={colors.text} />
               </Pressable>
             </View>
-            <Text accessibilityRole="header" style={styles.settingsTitle}>{t('whatCanCook')}</Text>
+            <AccentHeading style={styles.settingsTitle}>{t('whatCanCook')}</AccentHeading>
             <Text style={styles.settingsHint}>{t('shoppingMatchesHint')}</Text>
           </View>
         )}

@@ -73,29 +73,22 @@ test('keyboard opens the menu, focuses the current option and selects another on
   await expect.poll(async () => JSON.parse((await savedSettings(page))!).theme).toBe('dark');
 });
 
-// The tab bar takes the Settings surface on that tab only; other tabs keep theirs.
-// The first painted ancestor of a tab button is the bar itself.
-const barColor = (page: Page) => page.getByRole('tab', { name: /^(Настройки|Settings)$/ }).evaluate(element => {
-  for (let node: Element | null = element; node; node = node.parentElement) {
-    const color = getComputedStyle(node).backgroundColor;
-    if (color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent') return color;
-  }
-  return null;
-});
-for (const [theme, settings, others] of [['light', 'rgb(242, 242, 242)', 'rgb(245, 244, 240)'], ['dark', 'rgb(25, 25, 25)', 'rgb(11, 11, 12)']] as const) {
+// One surface on every tab; the page background is separate from the floating bar.
+const barColor = (page: Page) => page.getByTestId('monorec-tab-bar').evaluate(element => getComputedStyle(element).backgroundColor);
+for (const [theme, background, surface] of [['light', 'rgb(242, 242, 242)', 'rgb(255, 255, 255)'], ['dark', 'rgb(11, 11, 12)', 'rgb(32, 32, 34)']] as const) {
   test.describe(`tab bar, ${theme}`, () => {
     test.use({ seedSettings: { theme, language: 'ru', shoppingCompletedBehavior: 'moveDown' } });
-    test('matches the Settings screen only while Settings is open', async ({ page }) => {
+    test('uses the same surface across all tabs', async ({ page }) => {
       await openHome(page);
-      await expect.poll(() => barColor(page)).toBe(others);
+      await expect.poll(() => barColor(page)).toBe(surface);
       await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
       await expect(settingRow(page, 'Оформление')).toBeVisible();
-      await expect.poll(() => barColor(page)).toBe(settings);
-      await expect(page.getByTestId('settings-screen')).toHaveCSS('background-color', settings);
+      await expect.poll(() => barColor(page)).toBe(surface);
+      await expect(page.getByTestId('settings-screen')).toHaveCSS('background-color', background);
       for (const tab of ['Покупки', 'Выбор', 'Рецепты']) {
         await page.getByRole('tab', { name: tab, exact: true }).click();
         await expect(page.getByRole('tab', { name: tab, exact: true })).toHaveAttribute('aria-selected', 'true');
-        await expect.poll(() => barColor(page)).toBe(others);
+        await expect.poll(() => barColor(page)).toBe(surface);
       }
     });
   });
@@ -108,8 +101,8 @@ test('system theme is stored as system and follows the device appearance', async
   const card = settingRow(page, 'Оформление');
   const background = () => card.evaluate(element => getComputedStyle(element).backgroundColor);
   await page.emulateMedia({ colorScheme: 'dark' });
-  // Settings cards: #272727 dark, #FFFFFF light (SETTINGS_THEMES).
-  await expect.poll(background).toBe('rgb(39, 39, 39)');
+  // Settings shares the same surface as the main tabs.
+  await expect.poll(background).toBe('rgb(32, 32, 34)');
   await page.emulateMedia({ colorScheme: 'light' });
   await expect.poll(background).toBe('rgb(255, 255, 255)');
   expect(JSON.parse((await savedSettings(page))!).theme).toBe('system');
@@ -164,9 +157,10 @@ test.describe('narrow screen with large text', () => {
 
 test('sections follow the design and Backups opens one tap from Settings', async ({ page }) => {
   await openSettings(page);
-  await expect(page.getByText('Monorec / Приложение', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading').filter({ hasText: /^(Предпочтения|Покупки|Данные|Приложение)$/ }))
-    .toHaveText(['Предпочтения', 'Покупки', 'Данные', 'Приложение']);
+  await expect(page.getByText('Monorec / Приложение', { exact: true })).toHaveCount(0);
+  const sections = page.getByRole('heading').filter({ hasText: /^(Предпочтения|Покупки|Данные|Приложение)$/ });
+  await expect(sections).toHaveCount(4);
+  for (const section of await sections.all()) expect((await section.boundingBox())!.height).toBeLessThanOrEqual(1);
   for (const name of ['Знакомство', 'О Monorec', 'Резервные копии']) await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Резервные копии', exact: true }).click();
   await expect(page).toHaveURL(/\/backup$/);

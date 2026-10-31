@@ -1,3 +1,4 @@
+import { AccentHeading } from '@/components/accent-heading';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { type ComponentRef, useEffect, useMemo, useRef, useState } from 'react';
@@ -162,7 +163,7 @@ function ImportLinkContent() {
             </Pressable>
           </View>
           <Text style={styles.choiceKicker}>{t('addByLink')}</Text>
-          <Text accessibilityRole="header" style={styles.recipeTitle}>{t('importLinkTitle')}</Text>
+          <AccentHeading style={styles.recipeTitle}>{t('importLinkTitle')}</AccentHeading>
 
           <TextInput
             value={text}
