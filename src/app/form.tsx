@@ -163,13 +163,15 @@ function FormContent({ imported }: { imported: (ImportedDraft & { key: string })
   return (
     // iOS insets the scroll view itself (automaticallyAdjustKeyboardInsets). Android
     // draws edge to edge and no longer resizes the window, so the form makes room here.
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'android' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={[styles.screen, { paddingTop: insets.top }]} behavior={Platform.OS === 'android' ? 'padding' : undefined}>
       <ScrollView
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={keyboardDismissOnDrag}
         automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: bottomInset + 40 }}
+        // The safe area belongs to the viewport, so scrolling cannot move controls
+        // underneath the status bar. Keep the existing 8 px content spacing.
+        contentContainerStyle={{ paddingTop: 8, paddingBottom: bottomInset + 40 }}
       >
         <View style={styles.recipeContent}>
           <View style={styles.formTopBar}>
